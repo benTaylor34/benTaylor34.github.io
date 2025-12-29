@@ -1,0 +1,128 @@
+body {
+    background-color: #F2EEDD;
+}
+/*cube palette:
+#ec9846 
+#7fd1ae
+*/
+/*skip gradient:
+#ffc5a6
+#f98e72
+#bd5a42
+*/
+
+button {
+    outline: none;
+    background-color: #ec9846;
+}
+
+button.active {
+    outline: none;
+    background-color: #bd5a42;
+}
+
+.navbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.navbar_container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.navbar_menu {
+    display: flex;
+    list-style: none;
+}
+
+.navbar_item {
+    margin-left: 20px;
+}
+
+
+/*project page*/
+.project-block {
+    margin-left: 40px;
+}
+
+.project-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.project-title {
+    margin-bottom: 0px;
+}
+
+.project-date {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    font-style: italic;
+    font-weight: normal;
+}
+
+.project-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px
+}
+
+.project-description {
+    margin-top: 0px;
+    margin-left: 10px;
+    flex: 1;
+}
+
+.project-links {
+    display: flex;
+    gap: 10px;
+    margin-left: 20px;
+    margin-right: 20px
+}
+
+
+/*game page*/
+
+.game-layout {
+    display: flex;
+    gap: 30px;
+    justify-content: left;
+    align-items: flex-start;
+    margin-left: 40px;
+}
+
+.game-board {
+    aspect-ratio: 1 / 1;
+    /*outline: 2px solid #7fd1ae;*/
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    margin-left: 40px;
+}
+
+.cell {
+    width: 100px;
+    height: 100px;
+    font-size: 3rem;
+    line-height: 100px;
+    border: 1px solid black;
+}
+
+.game-settings {
+    margin: 10px;
+}
+/*
+.player-type-div {
+    margin-top: 20px;
+}
+*/
+.rules-div {
+    margin-top: 20px;
+}
+
+.reset-div {
+    margin-top: 20px;
+}
