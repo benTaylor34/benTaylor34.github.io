@@ -1,0 +1,36 @@
+.checkers-board {
+  display: grid;
+  grid-template-columns: repeat(8, 60px);
+  grid-template-rows: repeat(8, 60px);
+  gap: 0;
+  border: 2px solid #000;
+}
+
+.square {
+  width: 60px;
+  height: 60px;
+}
+
+.square.dark {
+  background-color: #b58863;
+}
+
+.square.light {
+  background-color: #f0d9b5;
+}
+
+.piece {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  margin: auto;
+  margin-top: 7px;
+}
+
+.piece.red {
+  background-color: red;
+}
+
+.piece.black {
+  background-color: black;
+}

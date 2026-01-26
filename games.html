@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Games</title>
+    <link rel="stylesheet" href="styles.css">
+    <link id="game-css" rel="stylesheet" href="">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar_container">
+            <ul class="navbar_menu">
+                <li class="navbar_item">
+                    <a href="/" class="navbar_links"> Home </a>
+                </li>
+                <li class="navbar_item">
+                    <a href="/projects.html" class="navbar_links">Projects</a>
+                </li>
+                <li class="navbar_item">
+                    <a href="/CV.html" class="navbar_links">CV</a>
+                </li>
+                <li class="navbar_item">
+                    <a href="/games.html" class="navbar_links">Games</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <div class="game-navbar">
+        <button onclick="showGame('naughts-and-crosses')">Naughts and Crosses</button>
+        <button onclick="showGame('draughts')">Draughts</button>
+        <button onclick="showGame('chess')">Chess</button>
+    </div>
+    <div class="game-container">
+        <div id="naughts-and-crosses" class="game">
+            <h2>Naughts and Crosses</h2>
+            <div class="game-layout">
+                <div class="game-board">
+                    <div class="cell" data-index="0"></div>
+                    <div class="cell" data-index="1"></div>
+                    <div class="cell" data-index="2"></div>
+                    <div class="cell" data-index="3"></div>
+                    <div class="cell" data-index="4"></div>
+                    <div class="cell" data-index="5"></div>
+                    <div class="cell" data-index="6"></div>
+                    <div class="cell" data-index="7"></div>
+                    <div class="cell" data-index="8"></div>
+                </div>
+                <div class="game-settings">
+                    <div class="player-type-div">    
+                        <button onclick="playerType(this, 'single')" class="player-type-button">Single-player</button>
+                        <button onclick="playerType(this, 'multi')" class="player-type-button">Multi-player</button>
+                    </div>
+                    <div class="rules-div">
+                        <button onclick="rules('naughts-and-crosses')" class="rules-button">Rules</button>
+                    </div>
+                    <div class="reset-div">
+                        <button onclick="reset()">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="draughts" class="game" style="display: none;">
+            <h2>Draughts</h2>
+            <div class="draughts-board"></div>
+            <button onclick="reset()">Reset</button>
+        </div>
+        <div id="chess" class="game" style="display: none;">
+            <h2>Chess</h2>
+        </div>
+    </div>
+    <script id="game-js" src=""></script>
+    <script src="game-loader.js"></script>
+</body>
+</html>

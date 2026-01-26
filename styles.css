@@ -1,0 +1,122 @@
+body {
+    background-color: #F2EEDD;
+}
+
+pallete {
+background-color: 
+#ec9846 
+#7fd1ae
+#ffc5a6
+#f98e72
+#bd5a42
+#3A2A1F
+#4A3B2A 
+#4FA3A5
+#6B8E6E
+#FFE2B8 
+#D8B48A  
+
+
+}
+
+
+
+button {
+    outline: none;
+    background-color: #ec9846;
+}
+
+button.active {
+    outline: none;
+    background-color: #bd5a42;
+}
+
+.navbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.navbar_container {
+    display: flex;
+    justify-content: space-between;
+}
+
+.navbar_menu {
+    display: flex;
+    list-style: none;
+}
+
+.navbar_item {
+    margin-left: 20px;
+}
+
+
+/*project page*/
+.project-block {
+    margin-left: 40px;
+}
+
+.project-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.project-title {
+    margin-bottom: 0px;
+}
+
+.project-date {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    font-style: italic;
+    font-weight: normal;
+}
+
+.project-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px
+}
+
+.project-description {
+    margin-top: 0px;
+    margin-left: 10px;
+    flex: 1;
+}
+
+.project-links {
+    display: flex;
+    gap: 10px;
+    margin-left: 20px;
+    margin-right: 20px
+}
+
+
+/*game page*/
+/*
+.game-layout {
+    display: flex;
+    gap: 30px;
+    justify-content: left;
+    align-items: flex-start;
+    margin-left: 40px;
+}
+*/
+.game-settings {
+    margin: 10px;
+}
+
+.player-type-div {
+    display: none;
+}
+
+.rules-div {
+    display: none;
+}
+
+.reset-div {
+    display: none;
+}
