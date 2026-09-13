@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>[Ben Taylor] — Desert Homepage</title>
+<meta name="description" content="A retro desert-themed personal homepage." />
+
+<!-- ============================================================
+     GOOGLE FONTS
+     VT323 = retro CRT body/mono, Press Start 2P = pixel headings
+     ============================================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+
+<style>
+  /* ============================================================
+     COLOR TOKENS  (only these 5 + tints/shades)
+     ============================================================ */
+  :root {
+    --charcoal: #2A3D45;   /* primary dark / text */
+    --rust:     #972D07;   /* accents, headings   */
+    --papaya:   #FFECD1;   /* main background     */
+    --tangerine:#FF7D00;   /* CTAs / highlights   */
+    --ocean:    #3C91E6;   /* links / secondary   */
+
+    /* derived tints/shades */
+    --charcoal-soft: #3d545e;
+    --papaya-deep:   #f5dcbb;
+    --rust-deep:     #6f2005;
+
+    --border-w: 4px;
+    --radius: 0px; /* chunky, square retro look */
+  }
+
+  /* ============================================================
+     RESET / BASE
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--papaya);
+    color: var(--charcoal);
+    font-family: 'VT323', 'Courier New', monospace;
+    font-size: 22px;
+    line-height: 1.4;
+    overflow-x: hidden;
+    /* dithered / noisy dusty texture via layered radial dots */
+    background-image:
+      radial-gradient(var(--papaya-deep) 1px, transparent 1px),
+      radial-gradient(var(--papaya-deep) 1px, transparent 1px);
+    background-size: 14px 14px;
+    background-position: 0 0, 7px 7px;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Press Start 2P', 'VT323', monospace;
+    line-height: 1.5;
+    color: var(--rust);
+    text-shadow: 2px 2px 0 var(--papaya-deep);
+  }
+
+  a { color: var(--ocean); text-decoration: none; }
+  a:hover, a:focus-visible { color: var(--tangerine); text-decoration: underline; }
+
+  :focus-visible {
+    outline: 3px dashed var(--tangerine);
+    outline-offset: 3px;
+  }
+
+  img { max-width: 100%; display: block; }
+
+  .wrap { width: min(1100px, 92vw); margin-inline: auto; }
+
+  section { padding: clamp(3rem, 8vw, 6rem) 0; position: relative; }
+
+  .section-title {
+    font-size: clamp(1rem, 3.5vw, 1.6rem);
+    margin: 0 0 2rem;
+    display: inline-block;
+    background: var(--charcoal);
+    color: var(--papaya);
+    padding: 0.6rem 1rem;
+    border: var(--border-w) solid var(--rust);
+    box-shadow: 6px 6px 0 var(--rust);
+  }
+
+  /* chunky retro panel */
+  .panel {
+    background: var(--papaya);
+    border: var(--border-w) solid var(--charcoal);
+    box-shadow: 8px 8px 0 var(--charcoal);
+  }
+
+  /* ============================================================
+     SCANLINE + GRAIN OVERLAY (CRT vibe), non-interactive
+     ============================================================ */
+  .crt-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(42,61,69,0.05) 0px,
+      rgba(42,61,69,0.05) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: multiply;
+    opacity: 0.6;
+  }
+
+  /* ============================================================
+     NAV BAR
+     ============================================================ */
+  header.hero { position: relative; overflow: hidden; }
+
+  nav.retro-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--charcoal);
+    border-bottom: var(--border-w) solid var(--rust);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    padding: 0.5rem 1rem;
+  }
+  nav.retro-nav .brand {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    color: var(--tangerine);
+    margin-right: auto;
+    text-shadow: 2px 2px 0 #000;
+  }
+  nav.retro-nav a {
+    color: var(--papaya);
+    font-size: 1.25rem;
+    padding: 0.15rem 0.5rem;
+    border: 2px solid transparent;
+  }
+  nav.retro-nav a:hover,
+  nav.retro-nav a:focus-visible { color: var(--charcoal); background: var(--tangerine); text-decoration: none; border-color: var(--papaya); }
+  nav.retro-nav a.active { color: var(--charcoal); background: var(--ocean); border-color: var(--papaya); }
+
+  /* ============================================================
+     HERO / DESERT BACKDROP
+     ============================================================ */
+  .hero-stage {
+    position: relative;
+    min-height: clamp(420px, 78vh, 720px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffd9a0 0%, var(--papaya) 55%);
+  }
+  .hero-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .hero-content {
+    position: relative;
+    z-index: 5;
+    padding: rem;
+  }
+  .hero-content h1 {
+    font-size: clamp(1.3rem, 6vw, 3rem);
+    margin: 0 0 1rem;
+    color: var(--rust);
+    text-shadow: 3px 3px 0 var(--papaya), 6px 6px 0 var(--tangerine);
+  }
+  .hero-content .tagline {
+    font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+    color: var(--charcoal);
+    background: rgba(255,236,209,0.7);
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border: 3px solid var(--charcoal);
+  }
+  .hero-content .cta {
+    margin-top: 1.75rem;
+    display: inline-block;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.8rem;
+    background: var(--tangerine);
+    color: var(--charcoal);
+    padding: 0.9rem 1.2rem;
+    border: var(--border-w) solid var(--charcoal);
+    box-shadow: 5px 5px 0 var(--charcoal);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .hero-content .cta:hover,
+  .hero-content .cta:focus-visible {
+    text-decoration: none;
+    transform: translate(2px, 2px);
+    box-shadow: 3px 3px 0 var(--charcoal);
+    color: var(--charcoal);
+  }
+
+  /* ============================================================
+     ABOUT
+     ============================================================ */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  @media (min-width: 820px) {
+    .about-grid { grid-template-columns: 1.9fr 1fr; }
+  }
+  .lead { font-size: 1.35rem; }
+
+  .hobbies {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+  .hobbies li {
+    background: var(--papaya-deep);
+    border: 3px solid var(--charcoal);
+    padding: 0.75rem;
+    display: flex;
+    gap: 0.2rem;
+    align-items: flex-start;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .hobbies .hicon { flex: 0 0 34px; color: var(--rust); }
+  .hobbies .hlabel { 
+    font-family: 'Press Start 2P', monospace; 
+    font-size: 0.6rem; 
+    color: var(--rust); 
+    display: block; 
+    margin-bottom: 0.35rem; 
+    overflow-wrap: anywhere;
+  }
+  .hobbies .hline { font-size: 1.05rem; line-height: 1; word-spacing: -2px; display: block  ;}
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+  }
+  .gallery img, .gallery .ph {
+    width: 100%;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+    border: 3px solid var(--charcoal);
+    filter: sepia(0.25) saturate(1.1);
+  }
+
+  /* Now Playing panel */
+  .nowplaying { padding: 1rem; }
+  .nowplaying h3 { font-size: 0.75rem; margin: 0 0 0.75rem; color: var(--ocean); }
+  .np-row { display: flex; gap: 0.75rem; align-items: center; }
+  .np-cover {
+    width: 64px; height: 64px; flex: 0 0 64px;
+    border: 3px solid var(--charcoal);
+    background: linear-gradient(135deg, var(--tangerine), var(--rust));
+    display: grid; place-items: center;
+  }
+  .np-meta .t { font-family: 'Press Start 2P', monospace; font-size: 0.6rem; color: var(--rust); }
+  .np-meta .a { font-size: 1.05rem; }
+  canvas.viz {
+    width: 100%;
+    height: 70px;
+    margin-top: 0.85rem;
+    border: 3px solid var(--charcoal);
+    background: var(--charcoal);
+    display: block;
+    image-rendering: pixelated;
+  }
+  .np-toggle {
+    margin-top: 0.6rem;
+    font-family: 'VT323', monospace;
+    font-size: 1.05rem;
+    background: var(--ocean);
+    color: var(--papaya);
+    border: 3px solid var(--charcoal);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+  }
+  .np-toggle:hover { background: var(--tangerine); color: var(--charcoal); }
+
+  /* ============================================================
+     PROJECTS
+     ============================================================ */
+  .proj-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .card {
+    background: var(--papaya);
+    border: var(--border-w) solid var(--charcoal);
+    box-shadow: 6px 6px 0 var(--charcoal);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .card:hover, .card:focus-within {
+    transform: translate(-2px,-2px);
+    box-shadow: 9px 9px 0 var(--rust);
+  }
+  .card picture {display: block; aspect-ratio: 12/10; width: 100%; overflow: hidden;}
+  .card .thumb {width: 100%; height: 100%; display: block; object-fit: cover; object-position: top center; border-bottom: 3px solid var(--charcoal); background: var(--charcoal);}
+  .card .body { padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+  .card h3 { font-size: 0.75rem; margin: 0; }
+  .card p.summary { margin: 0; font-size: 1.1rem; }
+  .card .detail {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    font-size: 1.05rem;
+    color: var(--charcoal-soft);
+  }
+  .card:hover .detail, .card:focus-within .detail { max-height: 200px; opacity: 1; }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: auto; }
+  .tag {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    background: var(--charcoal);
+    color: var(--papaya);
+    padding: 0.35rem 0.45rem;
+    border: 2px solid var(--rust);
+  }
+
+  /* ============================================================
+     CV / TIMELINE
+     ============================================================ */
+  .cv-grid { display: grid; grid-template-columns: 1fr; gap: 2.5rem; }
+  @media (min-width: 900px) { .cv-grid { grid-template-columns: 1.5fr 1fr; } }
+
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before {
+    content: "";
+    position: absolute; left: 6px; top: 0; bottom: 0;
+    width: 4px; background: var(--rust);
+  }
+  .tl-item { position: relative; margin-bottom: 2rem; }
+  .tl-item::before {
+    content: "";
+    position: absolute; left: -1.7rem; top: 4px;
+    width: 16px; height: 16px;
+    background: var(--tangerine);
+    border: 3px solid var(--charcoal);
+  }
+  .tl-item h3 { font-size: 0.7rem; margin: 0 0 0.25rem; }
+  .tl-item .org { color: var(--ocean); font-size: 1.15rem; }
+  .tl-item .dates { font-size: 1rem; color: var(--charcoal-soft); }
+  .tl-item ul { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 1.05rem; }
+
+  .skills-box .skill { margin-bottom: 0.75rem; }
+  .skills-box .skill .lbl { display: flex; justify-content: space-between; font-size: 1.05rem; }
+  .bar { height: 16px; background: var(--papaya-deep); border: 3px solid var(--charcoal); margin-top: 0.25rem; }
+  .bar > span { display: block; height: 100%; background: var(--tangerine); }
+
+  .dl-cv {
+    display: inline-block; margin-top: 1rem;
+    font-family: 'Press Start 2P', monospace; font-size: 0.7rem;
+    background: var(--rust); color: var(--papaya);
+    padding: 0.8rem 1rem; border: var(--border-w) solid var(--charcoal);
+    box-shadow: 5px 5px 0 var(--charcoal);
+  }
+  .dl-cv:hover { text-decoration: none; color: var(--papaya); transform: translate(2px,2px); box-shadow: 3px 3px 0 var(--charcoal); }
+
+  /* ============================================================
+     MINI GAMES
+     ============================================================ */
+  .games-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+  @media (min-width: 800px) { .games-grid { grid-template-columns: 1fr 1fr; } }
+  .game { padding: 1rem; }
+  .game h3 { font-size: 0.7rem; margin: 0 0 0.5rem; }
+  .game canvas {
+    width: 100%; display: block; background: #ffd9a0;
+    border: 3px solid var(--charcoal); image-rendering: pixelated;
+    touch-action: manipulation;
+  }
+  .game .controls { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+  .game button {
+    font-family: 'VT323', monospace; font-size: 1.1rem;
+    background: var(--tangerine); color: var(--charcoal);
+    border: 3px solid var(--charcoal); padding: 0.35rem 0.8rem; cursor: pointer;
+  }
+  .game button:hover { background: var(--ocean); color: var(--papaya); }
+  .game .score { font-family: 'Press Start 2P', monospace; font-size: 0.6rem; color: var(--rust); }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  footer {
+    background: var(--charcoal);
+    color: var(--papaya);
+    border-top: var(--border-w) solid var(--rust);
+    padding: 2rem 0;
+    text-align: center;
+  }
+  footer a { color: var(--tangerine); }
+
+  /* scroll reveal */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* cursor sand particle */
+  .sand {
+    position: fixed; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--tangerine); pointer-events: none; z-index: 9997;
+    opacity: 0.9;
+  }
+
+  .skip-link {
+    position: absolute; left: -999px; top: 0; z-index: 200;
+    background: var(--tangerine); color: var(--charcoal); padding: 0.5rem 1rem;
+    font-family: 'Press Start 2P', monospace; font-size: 0.6rem;
+  }
+  .skip-link:focus { left: 0; }
+</style>
+</head>
+<body>
+<div class="crt-overlay" aria-hidden="true"></div>
+<a class="skip-link" href="#about">Skip to content</a>
+
+<!-- ============================================================
+     HEADER / HERO
+     EDIT: name, tagline, nav labels
+     ============================================================ -->
+<header class="hero">
+  <nav class="retro-nav" aria-label="Primary">
+    <span class="brand">~ BenTaylor.dsrt ~</span>
+    <a href="#home" data-nav>Home</a>
+    <a href="#about" data-nav>About</a>
+    <a href="#projects" data-nav>Projects</a>
+    <a href="#cv" data-nav>CV</a>
+    <a href="#games" data-nav>Games</a>
+  </nav>
+
+  <div class="hero-stage" id="home">
+    <!-- Layered desert SVG backdrop (parallax on mouse) -->
+    <svg class="hero-svg" viewBox="0 0 800 500" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <!-- far dune -->
+      <path data-depth="0.02" fill="#f0c48a" d="M0 340 Q200 280 400 330 T800 320 V500 H0 Z"/>
+      <!-- mid dune -->
+      <path data-depth="0.05" fill="#e2a865" d="M0 390 Q160 330 380 380 T800 370 V500 H0 Z"/>
+      <!-- near dune -->
+      <path data-depth="0.09" fill="#c9843f" d="M0 440 Q220 400 460 435 T800 430 V500 H0 Z"/>
+      <!-- cactus -->
+      <g data-depth="0.12" fill="#2A3D45">
+        <rect x="120" y="380" width="16" height="70"/>
+        <rect x="104" y="400" width="16" height="10"/>
+        <rect x="104" y="380" width="10" height="30"/>
+        <rect x="136" y="392" width="16" height="10"/>
+        <rect x="142" y="372" width="10" height="30"/>
+      </g>
+      <g data-depth="0.12" fill="#2A3D45">
+        <rect x="650" y="395" width="14" height="55"/>
+        <rect x="636" y="410" width="14" height="9"/>
+        <rect x="636" y="392" width="9" height="27"/>
+      </g>
+    </svg>
+
+    <div class="hero-content">
+      <h1>[Ben Taylor]</h1>
+      <p class="tagline">Wandering the digital desert</p>
+      <br />
+      <a class="cta" href="#projects">See my work &raquo;</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============================================================
+       ABOUT
+       EDIT: intro copy, hobbies, gallery images, now playing track
+       ============================================================ -->
+  <section id="about" class="wrap reveal">
+    <h2 class="section-title">// About Me</h2>
+    <div class="about-grid">
+      <div>
+        <p class="lead">
+          Hey! I&apos;m <strong>Ben</strong>, a Software Engineer, I like
+          building whatever currently interests me. This is my personal site:
+          part portfolio, part arcade, part roadside attraction. Grab a cactus juice and stay a while.
+        </p>
+
+        <!-- Hobbies grid -->
+         <!--
+        <ul class="hobbies" aria-label="Hobbies">
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 13a8 8 0 0116 0v4h-3v-4a5 5 0 00-10 0v4H4z"/><rect x="4" y="19" width="16" height="3"/></svg>
+            <span><span class="hlabel">Badminton</span><span class="hline">Chasing sunsets on dusty trails.</span></span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><rect x="8" y="19" width="8" height="2"/></svg>
+            <span><span class="hlabel"></span>Discovering new music<span class="hline">Digging for new sounds in the dunes.</span></span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
+            <span><span class="hlabel">Travelling</span><span class="hline">Collecting stamps and sunburns.</span></span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 13l-2 7h4l1.5-5.5zM17 13l2 7h-4l-1.5-5.5z"/></svg>
+              <span><span class="hlabel">Martial Arts</span><span class="hline">Trying my best not to get beat up.</span></span>
+          </li>
+        </ul>
+      -->
+        <ul class="hobbies" aria-label="Hobbies">
+          <li>
+          <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <ellipse cx="14" cy="10" rx="5" ry="6.5" transform="rotate(45 14 10)" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="6.5" y1="17.5" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="11" y1="7" x2="17" y2="13" stroke="currentColor" stroke-width="1"/>
+            <line x1="13" y1="5" x2="19" y2="11" stroke="currentColor" stroke-width="1"/>
+            <line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="1"/>
+          </svg>
+            <span>
+              <span class="hlabel">Badminton</span>
+              <span class="hline">Slowly realising I'll never be Momota.</span>
+            </span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M4 13a8 8 0 0116 0v4h-3v-4a5 5 0 00-10 0v4H4z"/>
+              <rect x="3" y="13" width="4" height="7" rx="1"/>
+              <rect x="17" y="13" width="4" height="7" rx="1"/>
+            </svg>
+            <span>
+              <span class="hlabel">Finding New Music</span>
+              <span class="hline">Searching for new sounds.</span>
+            </span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16z"/>
+              <path d="M15.5 8.5l-2 5-5 2 2-5z"/>
+              <circle cx="12" cy="12" r="1.2" fill="#FFECD1"/>
+            </svg>
+            <span>
+              <span class="hlabel">Travelling</span>
+              <span class="hline">Developing my dad-lore.</span>
+            </span>
+          </li>
+          <li>
+            <svg class="hicon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 8a5 5 0 015-5h4a5 5 0 015 5v4a5 5 0 01-5 5h-4a5 5 0 01-5-5z"/>
+              <path d="M6 11a2 2 0 00-2 2v1a2 2 0 002 2h2v-5z"/>
+              <rect x="7" y="17" width="10" height="4" rx="1"/>
+            </svg>
+            <span>
+              <span class="hlabel">Martial Arts</span>
+              <span class="hline">Trying not to get beat up.</span>
+            </span>
+          </li>
+
+        </ul>
+                <!-- Photo gallery (placeholders from picsum) -->
+                <!-- <div class="gallery" aria-label="Photo gallery">
+                  <img src="https://picsum.photos/seed/desert1/300/300" alt="Placeholder desert photo 1" loading="lazy" />
+                  <img src="https://picsum.photos/seed/desert2/300/300" alt="Placeholder desert photo 2" loading="lazy" />
+                  <img src="https://picsum.photos/seed/desert3/300/300" alt="Placeholder desert photo 3" loading="lazy" />
+                </div> -->
+              </div>
+
+              <!-- Now Playing panel + visualizer -->
+              <aside class="nowplaying panel">
+                <h3>&#9835; Now Playing</h3>
+                <div class="np-row">
+                  <div class="np-cover" aria-hidden="true">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="#FFECD1"><path d="M9 3v10.6A4 4 0 1011 17V7h6V3z"/></svg>
+                  </div>
+                  <div class="np-meta">
+                    <div class="t">Cobra</div>
+                    <div class="a">Geese</div>
+                  </div>
+                </div>
+                <canvas class="viz" id="viz" width="320" height="70" role="img" aria-label="Audio visualizer animation"></canvas>
+                <button class="np-toggle" id="vizToggle" aria-pressed="true">&#10073;&#10073; Pause visualizer</button>
+                <!-- Optional: replace the block above with a real Spotify embed iframe -->
+              </aside>
+            </div>
+          </section>
+
+  <!-- ============================================================
+       PROJECTS
+       EDIT: each .card title / summary / detail / tags
+       ============================================================ -->
+  <section id="projects" class="wrap reveal">
+    <h2 class="section-title">// Projects</h2>
+    <div class="proj-grid">
+
+      <article class="card" tabindex="0">
+        <picture>
+          <svg class="thumb" viewBox="0 0 320 200" role="img" aria-label="Diagram of a Siamese network pipeline: input image feeds a feature pyramid, then two shared-weight encoders, producing a similarity score that highlights the matching video frame">
+            <rect width="320" height="200" fill="#2A3D45"/>
+            <g stroke="#3C91E6" stroke-width="0.5" opacity="0.35">
+              <path d="M0 20 H320 M0 40 H320 M0 60 H320 M0 80 H320 M0 100 H320 M0 120 H320 M0 140 H320 M0 160 H320 M0 180 H320"/>
+              <path d="M20 0 V200 M40 0 V200 M60 0 V200 M80 0 V200 M100 0 V200 M120 0 V200 M140 0 V200 M160 0 V200 M180 0 V200 M200 0 V200 M220 0 V200 M240 0 V200 M260 0 V200 M280 0 V200 M300 0 V200"/>
+            </g>
+            <g transform="translate(20, 70)">
+              <rect width="46" height="60" fill="#FFECD1" stroke="#FF7D00" stroke-width="2"/>
+              <circle cx="23" cy="24" r="8" fill="#972D07"/>
+              <path d="M0 46 L14 34 L26 44 L40 30 L46 38 V60 H0 Z" fill="#972D07"/>
+            </g>
+            <path d="M72 100 H100" stroke="#FF7D00" stroke-width="2" marker-end="url(#arrow)"/>
+            <g transform="translate(104, 60)">
+              <polygon points="0,80 60,80 44,0 16,0" fill="none" stroke="#FF7D00" stroke-width="2"/>
+              <polygon points="8,64 52,64 40,12 20,12" fill="none" stroke="#FF7D00" stroke-width="2" opacity="0.7"/>
+              <polygon points="16,48 44,48 36,24 24,24" fill="none" stroke="#FF7D00" stroke-width="2" opacity="0.5"/>
+            </g>
+            <path d="M170 100 H198" stroke="#FF7D00" stroke-width="2" marker-end="url(#arrow)"/>
+            <g transform="translate(204, 62)">
+              <rect x="0"  y="0" width="34" height="34" fill="#3C91E6" stroke="#FFECD1" stroke-width="1.5"/>
+              <rect x="0"  y="42" width="34" height="34" fill="#3C91E6" stroke="#FFECD1" stroke-width="1.5"/>
+              <text x="17" y="-4" font-size="6" fill="#FFECD1" text-anchor="middle" font-family="monospace">A</text>
+              <text x="17" y="86" font-size="6" fill="#FFECD1" text-anchor="middle" font-family="monospace">B</text>
+            </g>
+            <path d="M242 100 H266" stroke="#FF7D00" stroke-width="2" marker-end="url(#arrow)"/>
+            <g transform="translate(270, 82)">
+              <circle cx="18" cy="18" r="16" fill="none" stroke="#FF7D00" stroke-width="2"/>
+              <text x="18" y="22" font-size="12" fill="#FF7D00" text-anchor="middle" font-family="monospace">≈</text>
+            </g>
+            <circle r="3" fill="#FF7D00">
+              <animate attributeName="cx" values="0;320" dur="4s" repeatCount="indefinite"/>
+              <animate attributeName="cy" values="100;100" dur="4s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="1;0.4;1" dur="4s" repeatCount="indefinite"/>
+            </circle>
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#FF7D00"/>
+              </marker>
+            </defs>
+          </svg>
+        </picture>
+        
+        <div class="body">
+          <h3>Open-set Image to Video Entity Matching</h3>
+          <p class="summary">Searches a videos and identifies the timestamp where your image appeared. Useful for finding lost items. Cannot be used to identify people.</p>
+          <a href="https://github.com/benTaylor34/open-set-image-to-video-entity-matching-report" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+          <p class="detail">The subject of my masters thesis. Created my own novel ML architecture combining Feature Pyramid Networks, Siamese models, and CNNs to tackle this challenge.</p>
+          <div class="tags"><span class="tag">Python</span><span class="tag">Computer Vision</span><span class="tag">Machine Learning</span></div>
+        </div>
+      </article>
+
+      <article class="card" tabindex="0">
+          <picture>
+            <source type="image/webp" srcset="assets/illumi.webp" />
+            <img
+              class="thumb"
+              src="assets/illumi.png"
+              alt="Illumi chat interface"
+              width="1280" height="800"
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+        <div class="body">
+          <h3>Illumi Financial Management</h3>
+          <p class="summary">An intelligent personal financial management mobile chat assistant designed to provide users with conversational, natural-language insights into their historical spending data. Illumi transforms raw financial statements into actionable insights.</p>
+          <a href="https://github.com/benTaylor34/Illumi-financial-management" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+          <p class="detail">Built with a modern Python ecosystem and utilising prompt engineering with the OpenAi API.</p>
+          <div class="tags"><span class="tag">Python</span><span class="tag">HTML</span><span class="tag">AI API</span></div>
+        </div>
+      </article>
+
+      <article class="card" tabindex="0">
+         <picture>
+          <source type="image/webp" srcset="assets/linkedin-graph.webp" />
+          <img
+            class="thumb"
+            src="assets/linkedin-graph.png"
+            alt="Linkedin connections constellation graph"
+            width="1280" height="800"
+            loading="lazy"
+            decoding="async"
+          />
+        </picture>
+        <div class="body">
+          <h3>Linkedin Connections Visualizer</h3>
+          <p class="summary">A way to visualise your linkedin connections because who can remember everyone they've ever connected with?</p>
+          <a href="https://github.com/benTaylor34/linkedin-graph" target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+          <p class="detail">Uses python to dynamically generate a html and javascript file that displays a constellation graph.</p>
+          <div class="tags"><span class="tag">Python</span><span class="tag">HTML</span><span class="tag">JS</span></div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CV / EXPERIENCE
+       EDIT: timeline items, skills %, education, CV link
+       ============================================================ -->
+  <section id="cv" class="wrap reveal">
+    <h2 class="section-title">// CV &amp; Experience</h2>
+    <div class="cv-grid">
+      <div class="timeline">
+        <div class="tl-item">
+          <h3>Software Engineer</h3>
+          <div class="org">[Barclays]</div>
+          <div class="dates">Aug 2025 &mdash; Present</div>
+          <ul>
+            <li>Did an impressive thing that had measurable impact.</li>
+            <li>Built another thing that people actually used.</li>
+          </ul>
+        </div>
+        <div class="tl-item">
+          <h3>Data Science Intern</h3>
+          <div class="org">[Collaboraite]</div>
+          <div class="dates">Jun 2025 - Aug 2025</div>
+          <ul>
+            <li>Created a machine learning model for digital forensics.</li>
+            <li>Wrote loads of documentation.</li>
+          </ul>
+        </div>
+        <div class="tl-item">
+          <h3>Data Science Researcher</h3>
+          <div class="org">[Avanti West Coast]</div>
+          <div class="dates">Nov 2024 &mdash; Feb 2025</div>
+          <ul>
+            <li>Found out why the trains are late.</li>
+            <li>Told the company why the trains are late.</li>
+            <li>The trains are still late.</li>
+          </ul>
+        </div>
+        <div class="tl-item">
+          <h3>Technology Development Intern</h3>
+          <div class="org">[Barclays]</div>
+          <div class="dates">Jun 2024 &mdash; Sep 2024</div>
+          <ul>
+            <li>First tech job.</li>
+            <li>Learned the ropes and discovered my love for raising stakeholder value.</li>
+          </ul>
+        </div>
+        <div class="tl-item">
+          <h3>Underwater Ceramics Technician</h3>
+          <div class="org">[Barton Grange Garden Center]</div>
+          <div class="dates">2018</div>
+          <ul>
+            <li>Squeaky clean dishes.</li>
+            <li>So clean you could eat off them.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="skills-box">
+        <h3 style="font-size:0.7rem;">Skills</h3>
+        <div class="skill"><div class="lbl"><span>[Raising Stakeholder Value]</span><span>90%</span></div><div class="bar"><span style="width:90%"></span></div></div>
+        <div class="skill"><div class="lbl"><span>[Asking "How high?" when being told to jump]</span><span>75%</span></div><div class="bar"><span style="width:75%"></span></div></div>
+        <div class="skill"><div class="lbl"><span>[Hopping on a quick call]</span><span>60%</span></div><div class="bar"><span style="width:60%"></span></div></div>
+
+        <h3 style="font-size:0.7rem;margin-top:1.5rem;">Education</h3>
+        <p style="font-size:1.1rem;margin:0.25rem 0;"><strong>[Masters of Science]</strong><br/>[Lancaster], [2025]</p>
+        <p style="font-size:1.1rem;margin:0.25rem 0;"><strong>[Bachelors of Science]</strong><br/>[Lougborough], [2024]</p>
+
+        <a class="dl-cv" href="assets/Ben Taylor - CV.pdf" download="Ben-Taylor-CV.pdf" onclick="return confirm('Are you sure?');">&#8680; Download CV</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       MINI GAMES (bonus)
+       Two lightweight canvas games. Fully skippable.
+       ============================================================ -->
+  <section id="games" class="wrap reveal">
+    <h2 class="section-title">// Mini Games</h2>
+    <div class="games-grid">
+
+      <!-- Game 1: Catch the Tumbleweed (clicker) -->
+      <div class="game panel">
+        <h3>Catch the Tumbleweed</h3>
+        <canvas id="tumbleGame" width="360" height="240" aria-label="Tumbleweed catching game"></canvas>
+        <div class="controls">
+          <button id="tumbleStart">Start</button>
+          <span class="score">Score: <span id="tumbleScore">0</span></span>
+          <span class="score">Time: <span id="tumbleTime">20</span></span>
+        </div>
+        <p style="font-size:1rem;margin:0.5rem 0 0;">Click/tap the rolling tumbleweeds before they escape!</p>
+      </div>
+
+      <!-- Game 2: Cactus Dodger (endless jumper) -->
+      <div class="game panel">
+        <h3>Cactus Dodger</h3>
+        <canvas id="dodgeGame" width="360" height="240" aria-label="Cactus dodging game" tabindex="0"></canvas>
+        <div class="controls">
+          <button id="dodgeStart">Start</button>
+          <span class="score">Score: <span id="dodgeScore">0</span></span>
+          <span class="score">Best: <span id="dodgeBest">0</span></span>
+        </div>
+        <p style="font-size:1rem;margin:0.5rem 0 0;">Press Space / Up / tap to jump the cacti. Don&apos;t crash!</p>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================
+     FOOTER  — EDIT: links & contact
+     ============================================================ -->
+<footer>
+  <div class="wrap">
+    <p style="margin:0 0 0.5rem;font-size:1.2rem;">Made in the desert with sand, sun, &amp; barely-responsible vibecoding.</p>
+    <p style="margin:0;">
+      <a href="mailto:ben_taylor34@outlook.com">Email</a> &middot;
+      <a href="https://github.com/benTaylor34" >GitHub</a> &middot;
+      <a href="https://en.wikipedia.org/wiki/Mastodon">Mastodon</a>
+    </p>
+    <p style="margin:0.75rem 0 0;font-size:0.9rem;opacity:0.7;">&copy; <span id="year"></span> Ben Taylor</p>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   All vanilla JS. Sections below map to features in the spec.
+   ============================================================ */
+(function () {
+  "use strict";
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  /* ---------- Smooth-scroll nav + active section highlighting ---------- */
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('nav.retro-nav a[data-nav]'));
+  var sections = navLinks.map(function (a) { return document.querySelector(a.getAttribute('href')); }).filter(Boolean);
+
+  var navObserver = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        var id = e.target.id;
+        navLinks.forEach(function (a) {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+  sections.forEach(function (s) { navObserver.observe(s); });
+
+  /* ---------- Scroll-triggered fade-ins ---------- */
+  var revealObserver = new IntersectionObserver(function (entries, obs) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { revealObserver.observe(el); });
+
+  /* ---------- Hero parallax (cursor-reactive dunes) ---------- */
+  if (!reduceMotion) {
+    var heroStage = document.querySelector('.hero-stage');
+    var layers = document.querySelectorAll('.hero-svg [data-depth]');
+    heroStage.addEventListener('mousemove', function (ev) {
+      var r = heroStage.getBoundingClientRect();
+      var dx = (ev.clientX - r.left - r.width / 2);
+      var dy = (ev.clientY - r.top - r.height / 2);
+      layers.forEach(function (l) {
+        var d = parseFloat(l.getAttribute('data-depth'));
+        l.setAttribute('transform', 'translate(' + (dx * d) + ',' + (dy * d) + ')');
+      });
+    });
+    heroStage.addEventListener('mouseleave', function () {
+      layers.forEach(function (l) { l.setAttribute('transform', 'translate(0,0)'); });
+    });
+  }
+
+  /* ---------- Cursor sand-particle trail ---------- */
+  if (!reduceMotion && window.matchMedia('(pointer:fine)').matches) {
+    var lastSpawn = 0;
+    window.addEventListener('mousemove', function (e) {
+      var now = Date.now();
+      if (now - lastSpawn < 30) return;
+      lastSpawn = now;
+      var p = document.createElement('div');
+      p.className = 'sand';
+      var size = 3 + Math.random() * 5;
+      p.style.width = p.style.height = size + 'px';
+      p.style.left = e.clientX + 'px';
+      p.style.top = e.clientY + 'px';
+      p.style.background = Math.random() > 0.5 ? '#FF7D00' : '#c9843f';
+      document.body.appendChild(p);
+      var vx = (Math.random() - 0.5) * 2;
+      var start = now;
+      (function fall() {
+        var t = (Date.now() - start) / 600;
+        if (t >= 1) { p.remove(); return; }
+        p.style.transform = 'translate(' + (vx * t * 30) + 'px,' + (t * t * 40) + 'px)';
+        p.style.opacity = String(0.9 * (1 - t));
+        requestAnimationFrame(fall);
+      })();
+    });
+  }
+
+  /* ---------- Now Playing: fake audio visualizer ----------
+     Uses a Web Audio oscillator+analyser when available; falls back
+     to simulated sine-noise bars. Animates without real playback. */
+  (function () {
+    var canvas = document.getElementById('viz');
+    var ctx = canvas.getContext('2d');
+    var toggle = document.getElementById('vizToggle');
+    var running = !reduceMotion;
+    var t = 0;
+    var bars = 32;
+
+    // Try a silent Web Audio graph for "real" analyser data.
+    var analyser = null, dataArray = null, audioCtx = null;
+    function initAudio() {
+      try {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audioCtx = new AC();
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        gain.gain.value = 0.0001; // effectively silent
+        osc.type = 'sawtooth';
+        osc.frequency.value = 110;
+        osc.connect(analyser);
+        analyser.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+      } catch (e) { analyser = null; }
+    }
+
+    function draw() {
+      if (!running) return;
+      var w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      var bw = w / bars;
+      if (analyser) { analyser.getByteFrequencyData(dataArray); }
+      for (var i = 0; i < bars; i++) {
+        var v;
+        if (analyser && dataArray) {
+          v = dataArray[i % dataArray.length] / 255;
+        }
+        // blend with simulated sine noise so it always moves
+        var sim = (Math.sin(t * 0.05 + i * 0.5) * 0.5 + 0.5) *
+                  (Math.sin(t * 0.017 + i) * 0.5 + 0.5);
+        v = analyser ? (v * 0.6 + sim * 0.4) : sim;
+        var bh = Math.max(2, v * (h - 6));
+        // color by height
+        ctx.fillStyle = v > 0.66 ? '#FF7D00' : v > 0.33 ? '#3C91E6' : '#FFECD1';
+        ctx.fillRect(i * bw + 1, h - bh, bw - 2, bh);
+      }
+      t++;
+      requestAnimationFrame(draw);
+    }
+
+    toggle.addEventListener('click', function () {
+      running = !running;
+      toggle.setAttribute('aria-pressed', String(running));
+      toggle.innerHTML = running ? '&#10073;&#10073; Pause visualizer' : '&#9654; Play visualizer';
+      if (running) {
+        if (!audioCtx) initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        draw();
+      }
+    });
+
+    if (running) { draw(); }
+    else { toggle.innerHTML = '&#9654; Play visualizer'; toggle.setAttribute('aria-pressed', 'false'); }
+  })();
+
+  /* ============================================================
+     GAME 1: Catch the Tumbleweed (clicker)
+     ============================================================ */
+  (function () {
+    var canvas = document.getElementById('tumbleGame');
+    var ctx = canvas.getContext('2d');
+    var scoreEl = document.getElementById('tumbleScore');
+    var timeEl = document.getElementById('tumbleTime');
+    var startBtn = document.getElementById('tumbleStart');
+    var W = canvas.width, H = canvas.height;
+    var weeds = [], score = 0, timeLeft = 20, playing = false, raf = null, timer = null;
+
+    function spawn() {
+      var r = 16 + Math.random() * 14;
+      var fromLeft = Math.random() > 0.5;
+      weeds.push({
+        x: fromLeft ? -r : W + r,
+        y: 40 + Math.random() * (H - 80),
+        r: r,
+        vx: (fromLeft ? 1 : -1) * (1.5 + Math.random() * 2.5),
+        spin: 0
+      });
+    }
+
+    function drawWeed(w) {
+      ctx.save();
+      ctx.translate(w.x, w.y);
+      ctx.rotate(w.spin);
+      ctx.strokeStyle = '#6f2005';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#c9843f';
+      ctx.beginPath(); ctx.arc(0, 0, w.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      for (var a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * w.r, Math.sin(a) * w.r); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function frame() {
+      if (!playing) return;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#e2a865'; ctx.fillRect(0, H - 24, W, 24);
+      for (var i = weeds.length - 1; i >= 0; i--) {
+        var w = weeds[i];
+        w.x += w.vx; w.spin += w.vx * 0.03;
+        drawWeed(w);
+        if (w.x < -40 || w.x > W + 40) weeds.splice(i, 1);
+      }
+      if (Math.random() < 0.04 && weeds.length < 6) spawn();
+      raf = requestAnimationFrame(frame);
+    }
+
+    function hit(mx, my) {
+      if (!playing) return;
+      for (var i = weeds.length - 1; i >= 0; i--) {
+        var w = weeds[i];
+        if ((mx - w.x) * (mx - w.x) + (my - w.y) * (my - w.y) <= w.r * w.r) {
+          weeds.splice(i, 1); score++; scoreEl.textContent = score; break;
+        }
+      }
+    }
+
+    function pointer(e) {
+      var r = canvas.getBoundingClientRect();
+      var cx = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      var cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+      hit(cx * (W / r.width), cy * (H / r.height));
+    }
+    canvas.addEventListener('mousedown', pointer);
+    canvas.addEventListener('touchstart', function (e) { e.preventDefault(); pointer(e); }, { passive: false });
+
+    function start() {
+      score = 0; timeLeft = 20; weeds = []; playing = true;
+      scoreEl.textContent = '0'; timeEl.textContent = '20';
+      startBtn.textContent = 'Restart';
+      cancelAnimationFrame(raf); clearInterval(timer);
+      frame();
+      timer = setInterval(function () {
+        timeLeft--; timeEl.textContent = timeLeft;
+        if (timeLeft <= 0) { end(); }
+      }, 1000);
+    }
+    function end() {
+      playing = false; clearInterval(timer); cancelAnimationFrame(raf);
+      ctx.fillStyle = 'rgba(42,61,69,0.85)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFECD1'; ctx.font = '20px "VT323", monospace'; ctx.textAlign = 'center';
+      ctx.fillText('Time! You caught ' + score + ' tumbleweeds.', W / 2, H / 2 - 6);
+      ctx.fillText('Press Start to play again.', W / 2, H / 2 + 20);
+    }
+
+    startBtn.addEventListener('click', start);
+
+    // idle splash
+    ctx.fillStyle = '#e2a865'; ctx.fillRect(0, H - 24, W, 24);
+    ctx.fillStyle = '#6f2005'; ctx.font = '18px "VT323", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('Press Start!', W / 2, H / 2);
+  })();
+
+  /* ============================================================
+     GAME 2: Cactus Dodger (endless jumper)
+     ============================================================ */
+  (function () {
+    var canvas = document.getElementById('dodgeGame');
+    var ctx = canvas.getContext('2d');
+    var scoreEl = document.getElementById('dodgeScore');
+    var bestEl = document.getElementById('dodgeBest');
+    var startBtn = document.getElementById('dodgeStart');
+    var W = canvas.width, H = canvas.height;
+    var ground = H - 40;
+    var player, obstacles, speed, score, best = 0, playing = false, raf = null, spawnT = 0;
+
+    function reset() {
+      player = { x: 50, y: ground, vy: 0, size: 24, onGround: true };
+      obstacles = []; speed = 3.2; score = 0; spawnT = 0;
+      scoreEl.textContent = '0';
+    }
+
+    function jump() {
+      if (!playing) return;
+      if (player.onGround) { player.vy = -9.2; player.onGround = false; }
+    }
+
+    function spawnObs() {
+      var h = 20 + Math.random() * 26;
+      obstacles.push({ x: W + 20, w: 16 + Math.random() * 10, h: h });
+    }
+
+    function drawCactus(o) {
+      ctx.fillStyle = '#2A3D45';
+      ctx.fillRect(o.x, ground - o.h, o.w, o.h);
+      ctx.fillRect(o.x - 6, ground - o.h + 8, 6, 5);
+      ctx.fillRect(o.x - 6, ground - o.h + 2, 4, 12);
+      ctx.fillRect(o.x + o.w, ground - o.h + 12, 6, 5);
+      ctx.fillRect(o.x + o.w + 2, ground - o.h + 6, 4, 12);
+    }
+
+    function frame() {
+      if (!playing) return;
+      ctx.clearRect(0, 0, W, H);
+      // sky already via canvas bg; draw ground
+      ctx.fillStyle = '#c9843f'; ctx.fillRect(0, ground, W, H - ground);
+      // sun
+      ctx.fillStyle = '#FF7D00'; ctx.beginPath(); ctx.arc(W - 40, 40, 18, 0, Math.PI * 2); ctx.fill();
+
+      // physics
+      player.vy += 0.5; player.y += player.vy;
+      if (player.y >= ground) { player.y = ground; player.vy = 0; player.onGround = true; }
+
+      // player (little wanderer)
+      ctx.fillStyle = '#972D07';
+      ctx.fillRect(player.x, player.y - player.size, player.size, player.size);
+      ctx.fillStyle = '#FFECD1';
+      ctx.fillRect(player.x + 5, player.y - player.size + 6, 5, 5);
+
+      // obstacles
+      spawnT++;
+      if (spawnT > 70 + Math.random() * 40) { spawnObs(); spawnT = 0; }
+      for (var i = obstacles.length - 1; i >= 0; i--) {
+        var o = obstacles[i];
+        o.x -= speed;
+        drawCactus(o);
+        // collision
+        if (player.x < o.x + o.w && player.x + player.size > o.x &&
+            player.y > ground - o.h) {
+          return end();
+        }
+        if (o.x + o.w < 0) { obstacles.splice(i, 1); score++; scoreEl.textContent = score; speed += 0.06; }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    function start() {
+      reset(); playing = true; startBtn.textContent = 'Restart';
+      cancelAnimationFrame(raf); frame();
+    }
+    function end() {
+      playing = false; cancelAnimationFrame(raf);
+      if (score > best) { best = score; bestEl.textContent = best; }
+      ctx.fillStyle = 'rgba(42,61,69,0.85)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#FFECD1'; ctx.font = '20px "VT323", monospace'; ctx.textAlign = 'center';
+      ctx.fillText('Crash! Score: ' + score, W / 2, H / 2 - 6);
+      ctx.fillText('Press Start to run again.', W / 2, H / 2 + 20);
+    }
+
+    startBtn.addEventListener('click', function () { start(); canvas.focus(); });
+    window.addEventListener('keydown', function (e) {
+      if ((e.code === 'Space' || e.code === 'ArrowUp') && playing) { e.preventDefault(); jump(); }
+    });
+    canvas.addEventListener('mousedown', jump);
+    canvas.addEventListener('touchstart', function (e) { e.preventDefault(); jump(); }, { passive: false });
+
+    // idle splash
+    ctx.fillStyle = '#c9843f'; ctx.fillRect(0, ground, W, H - ground);
+    ctx.fillStyle = '#2A3D45'; ctx.font = '18px "VT323", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('Press Start!', W / 2, H / 2);
+  })();
+
+})();
+</script>
+</body>
+</html>
