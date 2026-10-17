@@ -3,16 +3,19 @@
    GET /  ->  { status, title, artist, url, cover, durationMs, progressMs, playedAt, fetchedAt, limited? }
      status: "playing" | "paused" | "last" | "none"
 
-   Keeps the Spotify refresh token and client secret server-side (Worker secrets),
-   and mirrors the desktop visualiser's logic: current playback if there is any,
-   otherwise the most recently played track.
+   Mirrors the desktop visualiser's logic: current playback if there is any, otherwise the
+   most recently played track. Login uses PKCE like the desktop app, so there's no client
+   secret: setup.py logs in once and stores the refresh token as a Worker secret.
 
-   Daily cap: every request is counted by the Quota Durable Object. Once DAILY_LIMIT is
-   reached (resets at midnight UTC) the worker stops calling Spotify and answers with the
-   last song it saw, marked `limited: true`, which tells the page to stop polling.
+   The Store Durable Object is the single global place for state:
+   - Daily cap: every request is counted. Once DAILY_LIMIT is reached (resets at midnight UTC)
+     the worker stops calling Spotify and answers with the last song it saw, marked
+     `limited: true`, which tells the page to stop polling.
+   - Login: Spotify may hand out a new refresh token on each refresh, so the current one is
+     kept here, and refreshes happen one at a time.
 
-   Secrets:  SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN
-   Var:      ALLOWED_ORIGINS (comma separated)
+   Secret:  SPOTIFY_REFRESH_TOKEN   (set by setup.py)
+   Vars:    SPOTIFY_CLIENT_ID, ALLOWED_ORIGINS   (wrangler.toml)
 */
 
 import { DurableObject } from 'cloudflare:workers';
@@ -22,8 +25,6 @@ import { DurableObject } from 'cloudflare:workers';
 const DAILY_LIMIT = 50000;
 const API = 'https://api.spotify.com/v1';
 const CACHE_SECONDS = 5; // shared across visitors so we stay well under Spotify's rate limits
-
-let memToken = null; // { value, expires }, survives between requests on a warm isolate
 
 export default {
   async fetch(request, env, ctx) {
@@ -40,17 +41,18 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: cors });
 
-    const quota = env.QUOTA.get(env.QUOTA.idFromName('global'));
-    const { ok, last, lastAt } = await quota.take(DAILY_LIMIT);
+    const store = env.STORE.get(env.STORE.idFromName('global'));
+    const { ok, last, fresh, token, error } = await store.take(DAILY_LIMIT, CACHE_SECONDS * 1000);
     if (!ok) {
       // over the cap: no Spotify call, just the last song as a "last played" card
       return json(last ? { ...last, status: 'last', progressMs: 0, limited: true } : { status: 'none', limited: true });
     }
-    if (last && Date.now() - lastAt < CACHE_SECONDS * 1000) return json(last);
+    if (fresh) return json(last);
+    if (error) return json({ status: 'error', message: error }, 502);
 
     try {
-      const body = await nowPlaying(env);
-      ctx.waitUntil(quota.remember(body));
+      const body = await nowPlaying(token);
+      ctx.waitUntil(store.remember(body));
       return json(body);
     } catch (err) {
       return json({ status: 'error', message: String(err.message || err) }, 502);
@@ -58,32 +60,40 @@ export default {
   },
 };
 
-// ---------------------------------------------------------------- daily cap
-// One global instance: counts today's requests and remembers the latest song.
-export class Quota extends DurableObject {
+// ---------------------------------------------------------------- shared state
+export class Store extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       this.day = (await ctx.storage.get('day')) || '';
       this.count = (await ctx.storage.get('count')) || 0;
       this.last = (await ctx.storage.get('last')) || null;
-      this.lastAt = 0; // in memory only: a restart just means one extra Spotify call
+      this.auth = (await ctx.storage.get('auth')) || null; // { seed: hash of the secret, token }
+      // in memory only: a restart just means one extra Spotify call / token refresh
+      this.lastAt = 0;
+      this.access = null; // { value, expires }
+      this.refreshing = null;
     });
   }
 
-  async take(limit) {
+  // Counts the request. If it's allowed and the cached song is stale, also hands back an access token.
+  async take(limit, maxAge) {
     const today = new Date().toISOString().slice(0, 10); // UTC
     if (today !== this.day) {
       this.day = today;
       this.count = 0;
       await this.ctx.storage.put('day', today);
     }
-    const ok = this.count < limit;
-    if (ok) {
-      this.count++;
-      await this.ctx.storage.put('count', this.count);
+    if (this.count >= limit) return { ok: false, last: this.last };
+    this.count++;
+    await this.ctx.storage.put('count', this.count);
+
+    if (this.last && Date.now() - this.lastAt < maxAge) return { ok: true, last: this.last, fresh: true };
+    try {
+      return { ok: true, token: await this.accessToken() };
+    } catch (err) {
+      return { ok: true, error: String(err.message || err) };
     }
-    return { ok, last: this.last, lastAt: this.lastAt };
   }
 
   async remember(body) {
@@ -93,32 +103,43 @@ export class Quota extends DurableObject {
     this.lastAt = Date.now();
     if (changed) await this.ctx.storage.put('last', body); // only write when the song/state changes
   }
+
+  // Access tokens last an hour. Only one refresh runs at a time, since each may rotate the refresh token.
+  async accessToken() {
+    if (this.access && this.access.expires > Date.now()) return this.access.value;
+    this.refreshing ??= this.refresh().finally(() => { this.refreshing = null; });
+    return this.refreshing;
+  }
+
+  async refresh() {
+    const secret = this.env.SPOTIFY_REFRESH_TOKEN;
+    if (!secret) throw new Error('not set up yet: run setup.bat');
+    // Re-running setup.py sets a new secret, which replaces whatever token we had rotated to.
+    const seed = await sha256(secret);
+    const current = this.auth && this.auth.seed === seed ? this.auth.token : secret;
+
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: current, client_id: this.env.SPOTIFY_CLIENT_ID }),
+    });
+    if (!res.ok) throw new Error(`token refresh failed (${res.status}): run setup.bat again`);
+    const tok = await res.json();
+    if (tok.refresh_token && tok.refresh_token !== current) {
+      this.auth = { seed, token: tok.refresh_token };
+      await this.ctx.storage.put('auth', this.auth);
+    }
+    this.access = { value: tok.access_token, expires: Date.now() + ((tok.expires_in || 3600) - 120) * 1000 };
+    return this.access.value;
+  }
 }
 
-// ---------------------------------------------------------------- auth
-// Access tokens last an hour; keep one in memory / the edge cache rather than refreshing per request.
-async function accessToken(env) {
-  if (memToken && memToken.expires > Date.now()) return memToken.value;
-  const key = new Request('https://token.internal/spotify-access-token');
-  const hit = await caches.default.match(key);
-  if (hit) return hit.text();
-
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + btoa(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`),
-    },
-    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: env.SPOTIFY_REFRESH_TOKEN }),
-  });
-  if (!res.ok) throw new Error(`token refresh failed (${res.status})`);
-  const tok = await res.json();
-  const ttl = Math.max(60, (tok.expires_in || 3600) - 120);
-  memToken = { value: tok.access_token, expires: Date.now() + ttl * 1000 };
-  await caches.default.put(key, new Response(tok.access_token, { headers: { 'Cache-Control': `max-age=${ttl}` } }));
-  return tok.access_token;
+async function sha256(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ---------------------------------------------------------------- spotify
 async function spotify(token, path) {
   const res = await fetch(API + path, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 204) return null;
@@ -142,8 +163,7 @@ function itemInfo(item) {
   };
 }
 
-async function nowPlaying(env) {
-  const token = await accessToken(env);
+async function nowPlaying(token) {
   const fetchedAt = Date.now();
 
   const player = await spotify(token, '/me/player?additional_types=episode');

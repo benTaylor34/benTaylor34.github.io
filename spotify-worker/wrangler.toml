@@ -3,17 +3,18 @@ main = "worker.js"
 compatibility_date = "2026-09-01"
 
 [vars]
+# Same Spotify app as the desktop visualiser. A client ID is public, so it's fine to commit.
+SPOTIFY_CLIENT_ID = "8d872bf189dc4b208697a44319b78154"
 # Sites allowed to call the worker. Add more (comma separated) if you test elsewhere.
 ALLOWED_ORIGINS = "https://bentaylor34.github.io,http://localhost:8000,http://127.0.0.1:8000"
 
-# Secrets (set with `npx wrangler secret put <NAME>`, never commit them):
-#   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN
+# Secret SPOTIFY_REFRESH_TOKEN is set by setup.bat. Never commit it.
 
-# Daily request cap (see DAILY_LIMIT in worker.js)
+# Daily request cap + login state (see Store in worker.js)
 [[durable_objects.bindings]]
-name = "QUOTA"
-class_name = "Quota"
+name = "STORE"
+class_name = "Store"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["Quota"]
+new_sqlite_classes = ["Store"]

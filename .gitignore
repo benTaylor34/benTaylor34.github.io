@@ -13,3 +13,6 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+# Cloudflare worker local state
+.wrangler/
+__pycache__/

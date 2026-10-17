@@ -928,7 +928,7 @@
      Spotify's audio, so the bars use the app's animated mode, tinted with the cover's
      colour: lively while playing, gentle when paused or showing the last-played track. */
   (function () {
-    var NOW_PLAYING_URL = ''; // e.g. 'https://spotify-now-playing.<you>.workers.dev'
+    var NOW_PLAYING_URL = 'https://spotify-now-playing.ben34.workers.dev'; // e.g. 'https://spotify-now-playing.<you>.workers.dev'
     var POLL_PLAYING = 10000, POLL_IDLE = 30000;
     var LIMIT_KEY = 'np-limited'; // set when the worker's daily cap is hit; holds { day, track }
     var NUM_BARS = 32;
