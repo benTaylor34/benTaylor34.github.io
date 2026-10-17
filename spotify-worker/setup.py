@@ -3,7 +3,8 @@
 1. Logs you in to Cloudflare (first time only; a free account, no card needed).
 2. Logs you in to Spotify (same app as the desktop visualiser, PKCE, no client secret).
 3. Deploys the worker and gives it your Spotify login.
-4. Puts the worker's URL into ../index.html and checks it works.
+4. Puts the worker's URL into ../index.html, connects the desktop Spotify Visualiser
+   (so it uploads its real bar recordings for the website), and checks it all works.
 
 Safe to run again, e.g. if the panel ever says to.
 """
@@ -25,6 +26,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 INDEX = HERE.parent / "index.html"
+DESKTOP_CONFIG = HERE.parent.parent / "spotify-visualiser" / "config.json"
 REDIRECT_URI = "http://127.0.0.1:8888/callback"  # already registered for the desktop visualiser
 SCOPES = "user-read-playback-state user-read-currently-playing user-read-recently-played"
 WRANGLER = "wrangler@4"
@@ -144,10 +146,35 @@ def deploy():
     return url.group(0)
 
 
-def set_secret(token):
-    code, _ = wrangler("secret", "put", "SPOTIFY_REFRESH_TOKEN", capture=True, input_text=token + "\n")
+def set_secret(name, value):
+    code, _ = wrangler("secret", "put", name, capture=True, input_text=value + "\n")
     if code != 0:
-        fail("couldn't save the Spotify login to Cloudflare (see above).")
+        fail(f"couldn't save {name} to Cloudflare (see above).")
+
+
+def upload_key():
+    """The key the desktop app uses to upload recordings. Kept across reruns so it keeps working."""
+    try:
+        key = json.loads(DESKTOP_CONFIG.read_text(encoding="utf-8")).get("site_upload_key", "")
+    except (OSError, ValueError):
+        key = ""
+    return key or secrets.token_urlsafe(32)
+
+
+def connect_desktop_app(url, key):
+    if not DESKTOP_CONFIG.parent.exists():
+        print(f"   Desktop Spotify Visualiser not found at {DESKTOP_CONFIG.parent}.")
+        print("   To have it upload its bar recordings, add these to its config.json:")
+        print(f'     "site_worker_url": "{url}",\n     "site_upload_key": "{key}"')
+        return
+    try:
+        cfg = json.loads(DESKTOP_CONFIG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cfg = {}
+    cfg.update(site_worker_url=url, site_upload_key=key)
+    DESKTOP_CONFIG.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    print("   Desktop Spotify Visualiser connected: songs it records will show real bars on the site.")
+    print("   (Restart it if it's running.)")
 
 
 def update_site(url):
@@ -196,9 +223,12 @@ def main():
     token = spotify_login(client_id)
     step(3, "Deploying the worker")
     url = deploy()
-    set_secret(token)
-    step(4, "Connecting the website")
+    set_secret("SPOTIFY_REFRESH_TOKEN", token)
+    key = upload_key()
+    set_secret("UPLOAD_KEY", key)
+    step(4, "Connecting the website and desktop app")
     update_site(url)
+    connect_desktop_app(url, key)
     check(url)
     print("\nAll done. Commit and push index.html to put it on your live site.")
 

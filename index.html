@@ -298,17 +298,6 @@
     display: block;
     image-rendering: pixelated;
   }
-  .np-toggle {
-    margin-top: 0.6rem;
-    font-family: 'VT323', monospace;
-    font-size: 1.05rem;
-    background: var(--ocean);
-    color: var(--papaya);
-    border: 3px solid var(--charcoal);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-  }
-  .np-toggle:hover { background: var(--tangerine); color: var(--charcoal); }
 
   /* ============================================================
      PROJECTS
@@ -610,7 +599,6 @@
                   <div class="np-times"><span id="npPos">0:00</span><span id="npDur">0:00</span></div>
                 </div>
                 <canvas class="viz" id="viz" width="320" height="70" role="img" aria-label="Audio visualizer animation"></canvas>
-                <button class="np-toggle" id="vizToggle" aria-pressed="true">&#10073;&#10073; Pause visualizer</button>
               </aside>
             </div>
           </section>
@@ -925,8 +913,10 @@
   /* ---------- Now Playing: live Spotify panel ----------
      Web port of the desktop Spotify Visualiser (github.com/benTaylor34/Spotify-Visualiser).
      Track info comes from the Cloudflare Worker in spotify-worker/. Browsers can't hear
-     Spotify's audio, so the bars use the app's animated mode, tinted with the cover's
-     colour: lively while playing, gentle when paused or showing the last-played track. */
+     Spotify's audio, so the bars (tinted with the cover's colour) come from, in order:
+     1. the desktop app's real recording of the song, if it has played on Ben's PC;
+     2. a beat at the song's real tempo, scaled by its energy (worker looks these up);
+     3. a gentle wave when nothing is playing (the app's generic animation). */
   (function () {
     var NOW_PLAYING_URL = 'https://spotify-now-playing.ben34.workers.dev'; // e.g. 'https://spotify-now-playing.<you>.workers.dev'
     var POLL_PLAYING = 10000, POLL_IDLE = 30000;
@@ -935,7 +925,6 @@
 
     var canvas = document.getElementById('viz');
     var ctx = canvas.getContext('2d');
-    var toggle = document.getElementById('vizToggle');
     var panel = canvas.closest('.nowplaying');
     var el = {
       status: document.getElementById('npStatus'),
@@ -952,9 +941,9 @@
     var track = null;      // last worker response
     var receivedAt = 0;    // performance.now() when it arrived
     var accent = '#FF7D00', accentDim = '#7a3c00';
-    var running = !reduceMotion;
     var levels = new Float32Array(NUM_BARS), peaks = new Float32Array(NUM_BARS);
-    var targets = new Float32Array(NUM_BARS), nextKick = 0;
+    var targets = new Float32Array(NUM_BARS);
+    var recordings = {};   // track id -> decoded recording, null (none), or 'loading'
     var pollTimer = null, lastFrame = 0, limited = false;
 
     // ---- helpers (ported from spotify_visualiser.py)
@@ -1005,7 +994,6 @@
         accent = '#FF7D00'; accentDim = '#7a3c00'; // cover not CORS-readable
       }
       panel.style.setProperty('--np-accent', accent);
-      if (!running) drawFrame(performance.now()); // recolour the still frame
     }
     function hsv(h, s, v) {
       s /= 100; v /= 100;
@@ -1027,6 +1015,7 @@
         el.cover.src = track.cover;
       }
       el.cover.alt = 'Cover art for ' + track.title;
+      loadRecording(track.id);
       el.progress.hidden = !(playing && track.durationMs);
       el.dur.textContent = fmtTime(track.durationMs);
       updateProgress();
@@ -1081,34 +1070,110 @@
         });
     }
 
-    // ---- bars
-    function nextTargets(t, playing) {
-      if (playing) {
-        // fresh "hits" a few times a second, heavier in the low end, then decay
-        if (t >= nextKick) {
-          nextKick = t + 110 + Math.random() * 140;
-          for (var i = 0; i < NUM_BARS; i++) {
-            var tilt = 1 - 0.45 * (i / NUM_BARS);
-            targets[i] = Math.min(1, tilt * (0.25 + Math.random() * 0.75));
-          }
+    // ---- recordings (uploaded by the desktop app; format documented in spotify-worker/worker.js)
+    function loadRecording(id) {
+      if (!id || limited || recordings[id] !== undefined || !window.DecompressionStream) return;
+      recordings[id] = 'loading';
+      fetch(NOW_PLAYING_URL.replace(/\/$/, '') + '/recordings/' + id, { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+        .then(function (buf) { return buf && decodeRecording(buf); })
+        .catch(function () { return null; })
+        .then(function (rec) { recordings[id] = rec || null; });
+    }
+    function decodeRecording(buf) {
+      var stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return new Response(stream).arrayBuffer().then(function (raw) {
+        var b = new Uint8Array(raw);
+        if (b.length < 10 || String.fromCharCode(b[0], b[1], b[2], b[3]) !== 'NPB1') return null;
+        var fps = b[4], bars = b[5], n = new DataView(raw).getUint32(6, true);
+        if (!fps || !bars || b.length !== 10 + n + n * bars) return null;
+        var filled = b.subarray(10, 10 + n), replay = [];
+        for (var i = 0; i < n; i++) if (filled[i]) replay.push(i);
+        if (!replay.length) return null;
+        // Recordings have small holes (frames the desktop app missed). Map each frame to the
+        // nearest recorded one within half a second, so playback doesn't flicker between the
+        // recording and the tempo beat; only longer gaps (-1) fall back to the beat.
+        var nearest = new Int32Array(n).fill(-1), reach = Math.round(fps / 2), prev = -1e9;
+        for (i = 0; i < n; i++) { if (filled[i]) prev = i; if (i - prev <= reach) nearest[i] = prev; }
+        prev = 1e9;
+        for (i = n - 1; i >= 0; i--) {
+          if (filled[i]) prev = i;
+          if (prev - i <= reach && (nearest[i] < 0 || prev - i < i - nearest[i])) nearest[i] = prev;
         }
-        return targets;
+        return { fps: fps, bars: bars, nearest: nearest, levels: b.subarray(10 + n), replay: replay };
+      });
+    }
+    function currentRecording() {
+      var rec = track && recordings[track.id];
+      return rec && rec !== 'loading' ? rec : null;
+    }
+
+    // ---- bars
+    // Fills `targets` and returns which source was used, which sets how quickly bars react.
+    function nextTargets(t, playing) {
+      var rec = currentRecording(), i, k;
+      if (rec) {
+        // like BarRecordings.levels_at: the frame at the song position while playing,
+        // otherwise loop through the recorded frames
+        var frame = -1;
+        if (playing) {
+          i = Math.floor(position() / 1000 * rec.fps);
+          if (i >= 0 && i < rec.nearest.length) frame = rec.nearest[i];
+        } else {
+          frame = rec.replay[Math.floor(t / 1000 * rec.fps) % rec.replay.length];
+        }
+        if (frame >= 0) {
+          for (k = 0; k < NUM_BARS; k++) {
+            var src = Math.round(k * (rec.bars - 1) / (NUM_BARS - 1));
+            targets[k] = rec.levels[frame * rec.bars + src] / 31;
+          }
+          return 'recording';
+        }
+        // this part of the song wasn't recorded: fall through to the tempo beat
+      }
+      if (playing) {
+        tempoLevels(t);
+        return 'tempo';
       }
       // generic_levels() from the app: a slow wave, used when nothing is playing
       var s = t / 1000;
-      for (var j = 0; j < NUM_BARS; j++) {
-        targets[j] = 0.2 + 0.12 * Math.sin(s * 1.6 + j * 0.32) + 0.07 * Math.sin(s * 2.7 - j * 0.17);
+      for (k = 0; k < NUM_BARS; k++) {
+        targets[k] = 0.2 + 0.12 * Math.sin(s * 1.6 + k * 0.32) + 0.07 * Math.sin(s * 2.7 - k * 0.17);
       }
-      return targets;
+      return 'idle';
+    }
+
+    // A believable spectrum: a smooth bass-heavy shape that drifts slowly, kick and snare on the
+    // song's real tempo, hi-hats on the off-beats. Timed from the song position so every visitor
+    // sees the same thing. Energy sets how big it all is.
+    function tempoLevels(t) {
+      var bpm = (track && track.tempo) || 112;
+      var energy = track && track.energy != null ? track.energy : 0.6;
+      var beats = position() / (60000 / bpm), phase = beats % 1;
+      var kick = Math.exp(-phase * 5);
+      var snare = Math.floor(beats) % 2 === 1 ? Math.exp(-phase * 7) : 0;
+      var hat = Math.exp(-((beats * 2) % 1) * 9);
+      var s = t / 1000, size = 0.55 + 0.45 * energy;
+      for (var k = 0; k < NUM_BARS; k++) {
+        var x = k / (NUM_BARS - 1);
+        var shape = 0.5 - 0.28 * x + 0.07 * Math.sin(s * 0.7 + x * 3) + 0.05 * Math.sin(s * 0.31 - x * 5);
+        var hits = 0.32 * kick * Math.exp(-x * 5)
+                 + 0.22 * snare * Math.exp(-Math.pow((x - 0.45) / 0.18, 2))
+                 + 0.12 * hat * Math.exp(-Math.pow((x - 0.85) / 0.12, 2));
+        var shimmer = 0.035 * Math.sin(s * 9.1 + k * 1.7) * Math.sin(s * 5.3 - k * 0.9);
+        targets[k] = Math.max(0, Math.min(1, (shape + hits + shimmer) * size));
+      }
     }
 
     function drawFrame(t) {
       var dt = lastFrame ? Math.min(0.1, (t - lastFrame) / 1000) : 1 / 60;
       lastFrame = t;
       var playing = !!track && track.status === 'playing';
-      var target = nextTargets(t, playing);
-      // fast attack, slower release, frame-rate independent (Spectrum.smooth)
-      var attack = 1 - Math.exp(-dt * 35), release = 1 - Math.exp(-dt * 9);
+      var target = targets, mode = nextTargets(t, playing);
+      // attack fast, release slower, frame-rate independent (Spectrum.smooth). Recordings use the
+      // desktop app's values; the made-up modes glide more so they don't look jittery.
+      var fast = mode === 'recording' ? 35 : 16, slow = mode === 'recording' ? 9 : 5;
+      var attack = 1 - Math.exp(-dt * fast), release = 1 - Math.exp(-dt * slow);
       for (var i = 0; i < NUM_BARS; i++) {
         levels[i] += (target[i] - levels[i]) * (target[i] > levels[i] ? attack : release);
         peaks[i] = Math.max(levels[i], peaks[i] - dt * 0.6);
@@ -1128,18 +1193,11 @@
       updateProgress();
     }
 
+    // always animating (browsers pause this automatically while the tab is hidden)
     function loop(t) {
-      if (!running) return;
       drawFrame(t);
       requestAnimationFrame(loop);
     }
-
-    toggle.addEventListener('click', function () {
-      running = !running;
-      toggle.setAttribute('aria-pressed', String(running));
-      toggle.innerHTML = running ? '&#10073;&#10073; Pause visualizer' : '&#9654; Play visualizer';
-      if (running) { lastFrame = 0; requestAnimationFrame(loop); }
-    });
 
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden && NOW_PLAYING_URL) poll();
@@ -1150,15 +1208,7 @@
       limited = true;
       if (savedLimit.track) { track = savedLimit.track; receivedAt = performance.now(); render(); }
     } else if (NOW_PLAYING_URL) poll();
-    if (running) { requestAnimationFrame(loop); }
-    else {
-      toggle.innerHTML = '&#9654; Play visualizer';
-      toggle.setAttribute('aria-pressed', 'false');
-      levels.set(nextTargets(0, false)); peaks.set(levels);
-      drawFrame(0); // one still frame so the canvas isn't empty
-    }
-    // keep the progress bar ticking even with the visualizer paused
-    setInterval(function () { if (!running) updateProgress(); }, 1000);
+    requestAnimationFrame(loop);
   })();
 
   /* ============================================================

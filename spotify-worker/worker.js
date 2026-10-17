@@ -1,7 +1,16 @@
 /* Spotify now-playing proxy for the homepage.
 
-   GET /  ->  { status, title, artist, url, cover, durationMs, progressMs, playedAt, fetchedAt, limited? }
-     status: "playing" | "paused" | "last" | "none"
+   GET /                  ->  { status, id, title, artist, url, cover, durationMs, progressMs,
+                                 playedAt, fetchedAt, tempo, energy, limited? }
+                                 status: "playing" | "paused" | "last" | "none"
+   GET /recordings/<id>   ->  the desktop app's bar recording for that track (gzip, see below), or 404
+   PUT /recordings/<id>   ->  upload one (desktop app only: needs `Authorization: Bearer UPLOAD_KEY`)
+
+   tempo/energy come from ReccoBeats (a free copy of Spotify's old audio features, which Spotify
+   blocks for new apps); null when it doesn't know the song.
+
+   Recording format (gzip-compressed): "NPB1", fps (u8), bars (u8), frame count n (u32 LE),
+   then n bytes "recorded?" flags (0/1), then n * bars levels (0-31).
 
    Mirrors the desktop visualiser's logic: current playback if there is any, otherwise the
    most recently played track. Login uses PKCE like the desktop app, so there's no client
@@ -14,7 +23,7 @@
    - Login: Spotify may hand out a new refresh token on each refresh, so the current one is
      kept here, and refreshes happen one at a time.
 
-   Secret:  SPOTIFY_REFRESH_TOKEN   (set by setup.py)
+   Secrets: SPOTIFY_REFRESH_TOKEN, UPLOAD_KEY   (set by setup.py)
    Vars:    SPOTIFY_CLIENT_ID, ALLOWED_ORIGINS   (wrangler.toml)
 */
 
@@ -25,6 +34,8 @@ import { DurableObject } from 'cloudflare:workers';
 const DAILY_LIMIT = 50000;
 const API = 'https://api.spotify.com/v1';
 const CACHE_SECONDS = 5; // shared across visitors so we stay well under Spotify's rate limits
+const MAX_RECORDING_BYTES = 1024 * 1024; // a full song is ~70 KB; Durable Object values max out at 2 MB
+const TRACK_ID = /^[A-Za-z0-9]{1,64}$/;
 
 export default {
   async fetch(request, env, ctx) {
@@ -39,9 +50,22 @@ export default {
       status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
-    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: cors });
 
     const store = env.STORE.get(env.STORE.idFromName('global'));
+    const path = new URL(request.url).pathname;
+    const rec = path.match(/^\/recordings\/([^/]+)$/);
+    if (rec) {
+      if (!TRACK_ID.test(rec[1])) return json({ error: 'bad track id' }, 400);
+      if (request.method === 'PUT') return putRecording(request, env, store, rec[1], json);
+      if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: cors });
+      const { ok, data } = await store.getRecording(rec[1], DAILY_LIMIT);
+      if (!ok) return json({ limited: true }, 429);
+      if (!data) return json({ error: 'no recording' }, 404);
+      return new Response(data, { headers: { ...cors, 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' } });
+    }
+    if (path !== '/') return json({ error: 'not found' }, 404);
+    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: cors });
+
     const { ok, last, fresh, token, error } = await store.take(DAILY_LIMIT, CACHE_SECONDS * 1000);
     if (!ok) {
       // over the cap: no Spotify call, just the last song as a "last played" card
@@ -52,6 +76,12 @@ export default {
 
     try {
       const body = await nowPlaying(token);
+      if (body.id) {
+        // tempo/energy only change with the track, so look them up once per song
+        Object.assign(body, last && last.id === body.id && 'tempo' in last
+          ? { tempo: last.tempo, energy: last.energy }
+          : await audioFeatures(body.id));
+      }
       ctx.waitUntil(store.remember(body));
       return json(body);
     } catch (err) {
@@ -66,7 +96,7 @@ export class Store extends DurableObject {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       this.day = (await ctx.storage.get('day')) || '';
-      this.count = (await ctx.storage.get('count')) || 0;
+      this.used = (await ctx.storage.get('count')) || 0;
       this.last = (await ctx.storage.get('last')) || null;
       this.auth = (await ctx.storage.get('auth')) || null; // { seed: hash of the secret, token }
       // in memory only: a restart just means one extra Spotify call / token refresh
@@ -76,24 +106,41 @@ export class Store extends DurableObject {
     });
   }
 
-  // Counts the request. If it's allowed and the cached song is stale, also hands back an access token.
-  async take(limit, maxAge) {
+  // Counts one request against today's cap; false once the cap is reached.
+  async count(limit) {
     const today = new Date().toISOString().slice(0, 10); // UTC
     if (today !== this.day) {
       this.day = today;
-      this.count = 0;
+      this.used = 0;
       await this.ctx.storage.put('day', today);
     }
-    if (this.count >= limit) return { ok: false, last: this.last };
-    this.count++;
-    await this.ctx.storage.put('count', this.count);
+    if (this.used >= limit) return false;
+    this.used++;
+    await this.ctx.storage.put('count', this.used);
+    return true;
+  }
 
+  // Counts the request. If it's allowed and the cached song is stale, also hands back an access token.
+  async take(limit, maxAge) {
+    if (!(await this.count(limit))) return { ok: false, last: this.last };
     if (this.last && Date.now() - this.lastAt < maxAge) return { ok: true, last: this.last, fresh: true };
     try {
-      return { ok: true, token: await this.accessToken() };
+      return { ok: true, last: this.last, token: await this.accessToken() };
     } catch (err) {
-      return { ok: true, error: String(err.message || err) };
+      return { ok: true, last: this.last, error: String(err.message || err) };
     }
+  }
+
+  async getRecording(id, limit) {
+    if (!(await this.count(limit))) return { ok: false };
+    return { ok: true, data: (await this.ctx.storage.get('rec:' + id)) || null };
+  }
+
+  // Uploads are rare (one per song played on the PC), so they're counted but never refused by the cap.
+  async putRecording(id, data) {
+    this.used++;
+    await this.ctx.storage.put('count', this.used);
+    await this.ctx.storage.put('rec:' + id, data);
   }
 
   async remember(body) {
@@ -134,12 +181,44 @@ export class Store extends DurableObject {
   }
 }
 
+// The desktop app uploads a song's bars once it has recorded enough of it.
+async function putRecording(request, env, store, id, json) {
+  const auth = request.headers.get('Authorization') || '';
+  if (!env.UPLOAD_KEY || !(await sameSecret(auth, `Bearer ${env.UPLOAD_KEY}`))) return json({ error: 'unauthorized' }, 401);
+  const data = new Uint8Array(await request.arrayBuffer());
+  if (data.length < 10 || data.length > MAX_RECORDING_BYTES || data[0] !== 0x1f || data[1] !== 0x8b) {
+    return json({ error: 'expected a gzip recording under 1 MB' }, 400);
+  }
+  await store.putRecording(id, data);
+  return json({ ok: true, bytes: data.length });
+}
+
+// Constant-time compare (hash both so lengths match), so the key can't be guessed byte by byte.
+async function sameSecret(a, b) {
+  const [x, y] = await Promise.all([sha256(a), sha256(b)]);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return diff === 0;
+}
+
 async function sha256(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ---------------------------------------------------------------- spotify
+// Tempo (BPM) and energy (0-1) for a track. Best effort: any failure just means "unknown".
+async function audioFeatures(id) {
+  try {
+    const res = await fetch(`https://api.reccobeats.com/v1/audio-features?ids=${id}`, {
+      headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000),
+    });
+    const f = res.ok ? (await res.json()).content?.[0] : null;
+    if (f && f.tempo > 0) return { tempo: Math.round(f.tempo * 10) / 10, energy: f.energy ?? null };
+  } catch {}
+  return { tempo: null, energy: null };
+}
+
 async function spotify(token, path) {
   const res = await fetch(API + path, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 204) return null;
@@ -154,6 +233,7 @@ function itemInfo(item) {
   const episode = item.type === 'episode';
   const images = (episode ? item.images || item.show?.images : item.album?.images) || [];
   return {
+    id: item.id || '',
     title: item.name || '',
     artist: episode ? item.show?.name || '' : (item.artists || []).map((a) => a.name).join(', '),
     url: item.external_urls?.spotify || '',

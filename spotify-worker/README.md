@@ -27,6 +27,19 @@ There's no client secret. Like the desktop app, it uses PKCE with the client ID 
 Until `NOW_PLAYING_URL` is set, or if the worker can't be reached, the panel shows the
 fallback track hard-coded in `index.html`.
 
+## How the bars work
+
+Browsers can't hear Spotify's audio, so the panel picks the best data it has:
+
+1. **Your real bars**: the desktop Spotify Visualiser records every song it hears on your PC.
+   Setup connects it to this worker (it adds `site_worker_url` and `site_upload_key` to the app's
+   `config.json`), and it uploads a song's recording (~70 KB) once a fifth of it is recorded.
+   Songs recorded before this existed upload the next time you play them on the PC.
+2. **The song's tempo**: for anything else, the bars pulse at the song's real BPM and size,
+   using tempo/energy from [ReccoBeats](https://reccobeats.com) (Spotify blocks this data for new
+   apps). Unknown songs use a default tempo. The beat isn't lined up with the real drums.
+3. **A gentle wave** when nothing is playing and there's no recording.
+
 ## Do I need a Cloudflare account?
 
 Yes, a free one. The panel has to work while your PC is off, and your Spotify login can't
