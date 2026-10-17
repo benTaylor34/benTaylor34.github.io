@@ -269,15 +269,26 @@
   /* Now Playing panel */
   .nowplaying { padding: 1rem; }
   .nowplaying h3 { font-size: 0.75rem; margin: 0 0 0.75rem; color: var(--ocean); }
-  .np-row { display: flex; gap: 0.75rem; align-items: center; }
+  .np-row { display: flex; gap: 0.75rem; align-items: center; color: inherit; text-decoration: none; }
+  a.np-row[href]:hover .t { color: var(--tangerine); }
   .np-cover {
     width: 64px; height: 64px; flex: 0 0 64px;
     border: 3px solid var(--charcoal);
     background: linear-gradient(135deg, var(--tangerine), var(--rust));
     display: grid; place-items: center;
   }
-  .np-meta .t { font-family: 'Press Start 2P', monospace; font-size: 0.6rem; color: var(--rust); }
-  .np-meta .a { font-size: 1.05rem; }
+  .np-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .np-meta { min-width: 0; }
+  .np-meta .t {
+    font-family: 'Press Start 2P', monospace; font-size: 0.6rem; line-height: 1.5; color: var(--rust);
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .np-meta .a { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np-progress { margin-top: 0.7rem; }
+  .np-progress[hidden] { display: none; }
+  .np-bar { height: 6px; border: 2px solid var(--charcoal); background: var(--papaya-deep); }
+  .np-bar span { display: block; height: 100%; width: 0; background: var(--np-accent, var(--tangerine)); }
+  .np-times { display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--charcoal-soft); }
   canvas.viz {
     width: 100%;
     height: 70px;
@@ -581,20 +592,25 @@
               </div>
 
               <!-- Now Playing panel + visualizer -->
-              <aside class="nowplaying panel">
-                <h3>&#9835; Now Playing</h3>
-                <div class="np-row">
+              <!-- Live from Spotify via spotify-worker/ (see its README). The track below is the
+                   fallback shown until NOW_PLAYING_URL is set or if the worker can't be reached. -->
+              <aside class="nowplaying panel" aria-live="polite">
+                <h3 id="npStatus">&#9835; Now Playing</h3>
+                <a class="np-row" id="npLink" target="_blank" rel="noreferrer">
                   <div class="np-cover" aria-hidden="true">
-                    <img src="assets/music-icon.png" alt="getting killed geese" />
+                    <img id="npCover" src="assets/music-icon.png" alt="" />
                   </div>
                   <div class="np-meta">
-                    <div class="t">Cobra</div>
-                    <div class="a">Geese</div>
+                    <div class="t" id="npTitle">Cobra</div>
+                    <div class="a" id="npArtist">Geese</div>
                   </div>
+                </a>
+                <div class="np-progress" id="npProgress" hidden>
+                  <div class="np-bar"><span id="npFill"></span></div>
+                  <div class="np-times"><span id="npPos">0:00</span><span id="npDur">0:00</span></div>
                 </div>
                 <canvas class="viz" id="viz" width="320" height="70" role="img" aria-label="Audio visualizer animation"></canvas>
                 <button class="np-toggle" id="vizToggle" aria-pressed="true">&#10073;&#10073; Pause visualizer</button>
-                <!-- TODO: replace the block above with a real Spotify embed iframe -->
               </aside>
             </div>
           </section>
@@ -906,76 +922,243 @@
     });
   }
 
-  /* ---------- Now Playing: fake audio visualizer ----------
-     Uses a Web Audio oscillator+analyser when available; falls back
-     to simulated sine-noise bars. Animates without real playback. */
+  /* ---------- Now Playing: live Spotify panel ----------
+     Web port of the desktop Spotify Visualiser (github.com/benTaylor34/Spotify-Visualiser).
+     Track info comes from the Cloudflare Worker in spotify-worker/. Browsers can't hear
+     Spotify's audio, so the bars use the app's animated mode, tinted with the cover's
+     colour: lively while playing, gentle when paused or showing the last-played track. */
   (function () {
+    var NOW_PLAYING_URL = ''; // e.g. 'https://spotify-now-playing.<you>.workers.dev'
+    var POLL_PLAYING = 10000, POLL_IDLE = 30000;
+    var LIMIT_KEY = 'np-limited'; // set when the worker's daily cap is hit; holds { day, track }
+    var NUM_BARS = 32;
+
     var canvas = document.getElementById('viz');
     var ctx = canvas.getContext('2d');
     var toggle = document.getElementById('vizToggle');
-    var running = !reduceMotion;
-    var t = 0;
-    var bars = 32;
+    var panel = canvas.closest('.nowplaying');
+    var el = {
+      status: document.getElementById('npStatus'),
+      link: document.getElementById('npLink'),
+      cover: document.getElementById('npCover'),
+      title: document.getElementById('npTitle'),
+      artist: document.getElementById('npArtist'),
+      progress: document.getElementById('npProgress'),
+      fill: document.getElementById('npFill'),
+      pos: document.getElementById('npPos'),
+      dur: document.getElementById('npDur')
+    };
 
-    // Try a silent Web Audio graph for "real" analyser data.
-    var analyser = null, dataArray = null, audioCtx = null;
-    function initAudio() {
+    var track = null;      // last worker response
+    var receivedAt = 0;    // performance.now() when it arrived
+    var accent = '#FF7D00', accentDim = '#7a3c00';
+    var running = !reduceMotion;
+    var levels = new Float32Array(NUM_BARS), peaks = new Float32Array(NUM_BARS);
+    var targets = new Float32Array(NUM_BARS), nextKick = 0;
+    var pollTimer = null, lastFrame = 0, limited = false;
+
+    // ---- helpers (ported from spotify_visualiser.py)
+    function fmtTime(ms) {
+      var sec = Math.max(0, Math.floor(ms / 1000));
+      return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }
+    function timeAgo(iso) {
+      var sec = (Date.now() - new Date(iso).getTime()) / 1000;
+      if (!isFinite(sec)) return '';
+      if (sec < 90) return 'just now';
+      var units = [['day', 86400], ['hour', 3600], ['min', 60]];
+      for (var i = 0; i < units.length; i++) {
+        if (sec >= units[i][1]) {
+          var n = Math.floor(sec / units[i][1]);
+          return n + ' ' + units[i][0] + (n > 1 && units[i][0] !== 'min' ? 's' : '') + ' ago';
+        }
+      }
+      return '';
+    }
+    function position() {
+      if (!track || !track.durationMs) return 0;
+      var p = track.progressMs + (track.status === 'playing' ? performance.now() - receivedAt : 0);
+      return Math.min(track.durationMs, Math.max(0, p));
+    }
+    // Average cover colour, kept vivid against the dark canvas (accent_from in the app).
+    function setAccentFrom(img) {
       try {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        audioCtx = new AC();
-        var osc = audioCtx.createOscillator();
-        var gain = audioCtx.createGain();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        gain.gain.value = 0.0001; // effectively silent
-        osc.type = 'sawtooth';
-        osc.frequency.value = 110;
-        osc.connect(analyser);
-        analyser.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-      } catch (e) { analyser = null; }
+        var c = document.createElement('canvas');
+        c.width = c.height = 16;
+        var cx = c.getContext('2d');
+        cx.drawImage(img, 0, 0, 16, 16);
+        var d = cx.getImageData(0, 0, 16, 16).data, r = 0, g = 0, b = 0;
+        for (var i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+        var n = d.length / 4;
+        r /= n * 255; g /= n * 255; b /= n * 255;
+        var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0, delta = max - min;
+        if (delta) {
+          if (max === r) h = ((g - b) / delta) % 6;
+          else if (max === g) h = (b - r) / delta + 2;
+          else h = (r - g) / delta + 4;
+          h = (h * 60 + 360) % 360;
+        }
+        var sat = Math.max(max ? delta / max : 0, 0.45) * 100, val = Math.max(max, 0.75) * 100;
+        accent = hsv(h, sat, val);
+        accentDim = hsv(h, sat, val * 0.45);
+      } catch (e) {
+        accent = '#FF7D00'; accentDim = '#7a3c00'; // cover not CORS-readable
+      }
+      panel.style.setProperty('--np-accent', accent);
+      if (!running) drawFrame(performance.now()); // recolour the still frame
+    }
+    function hsv(h, s, v) {
+      s /= 100; v /= 100;
+      var f = function (n) { var k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+      return 'rgb(' + Math.round(f(5) * 255) + ',' + Math.round(f(3) * 255) + ',' + Math.round(f(1) * 255) + ')';
     }
 
-    function draw() {
-      if (!running) return;
-      var w = canvas.width, h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-      var bw = w / bars;
-      if (analyser) { analyser.getByteFrequencyData(dataArray); }
-      for (var i = 0; i < bars; i++) {
-        var v;
-        if (analyser && dataArray) {
-          v = dataArray[i % dataArray.length] / 255;
-        }
-        // blend with simulated sine noise so it always moves
-        var sim = (Math.sin(t * 0.05 + i * 0.5) * 0.5 + 0.5) *
-                  (Math.sin(t * 0.017 + i) * 0.5 + 0.5);
-        v = analyser ? (v * 0.6 + sim * 0.4) : sim;
-        var bh = Math.max(2, v * (h - 6));
-        // color by height
-        ctx.fillStyle = v > 0.66 ? '#FF7D00' : v > 0.33 ? '#3C91E6' : '#FFECD1';
-        ctx.fillRect(i * bw + 1, h - bh, bw - 2, bh);
+    // ---- data
+    function render() {
+      var playing = track.status === 'playing';
+      el.status.textContent = '♫ ' + (playing ? 'Now Playing' : 'Last played ' + timeAgo(track.playedAt));
+      el.title.textContent = track.title;
+      el.artist.textContent = track.artist;
+      if (track.url) el.link.href = track.url; else el.link.removeAttribute('href');
+      el.link.title = track.url ? 'Open on Spotify' : '';
+      if (track.cover && el.cover.getAttribute('src') !== track.cover) {
+        el.cover.crossOrigin = 'anonymous';
+        el.cover.onload = function () { setAccentFrom(el.cover); };
+        el.cover.src = track.cover;
       }
-      t++;
-      requestAnimationFrame(draw);
+      el.cover.alt = 'Cover art for ' + track.title;
+      el.progress.hidden = !(playing && track.durationMs);
+      el.dur.textContent = fmtTime(track.durationMs);
+      updateProgress();
+    }
+    function updateProgress() {
+      if (!track || el.progress.hidden) return;
+      var p = position();
+      el.fill.style.width = (100 * p / track.durationMs).toFixed(2) + '%';
+      el.pos.textContent = fmtTime(p);
+    }
+
+    function utcDay() { return new Date().toISOString().slice(0, 10); }
+
+    // The worker's daily request cap was reached: show its last song and stop asking.
+    // Remembered until midnight UTC so reloads and return visits don't make requests either.
+    function stopForToday(data) {
+      limited = true;
+      clearTimeout(pollTimer);
+      try { localStorage.setItem(LIMIT_KEY, JSON.stringify({ day: utcDay(), track: data })); } catch (e) {}
+    }
+    function limitedToday() {
+      try {
+        var saved = JSON.parse(localStorage.getItem(LIMIT_KEY));
+        if (saved && saved.day === utcDay()) return saved;
+        localStorage.removeItem(LIMIT_KEY);
+      } catch (e) {}
+      return null;
+    }
+
+    function poll() {
+      clearTimeout(pollTimer);
+      if (limited || document.hidden) return; // resumes on visibilitychange
+      fetch(NOW_PLAYING_URL, { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (data && data.title && data.status !== 'none') {
+            track = data;
+            receivedAt = performance.now();
+            render();
+          }
+          if (data && data.limited) stopForToday(track);
+        })
+        .catch(function () { /* keep showing whatever we had */ })
+        .then(function () {
+          if (limited) return;
+          var wait = track && track.status === 'playing' ? POLL_PLAYING : POLL_IDLE;
+          // check back just after the song should end, to catch the next one promptly
+          if (track && track.status === 'playing' && track.durationMs) {
+            wait = Math.min(wait, track.durationMs - position() + 1500);
+          }
+          pollTimer = setTimeout(poll, Math.max(2000, wait));
+        });
+    }
+
+    // ---- bars
+    function nextTargets(t, playing) {
+      if (playing) {
+        // fresh "hits" a few times a second, heavier in the low end, then decay
+        if (t >= nextKick) {
+          nextKick = t + 110 + Math.random() * 140;
+          for (var i = 0; i < NUM_BARS; i++) {
+            var tilt = 1 - 0.45 * (i / NUM_BARS);
+            targets[i] = Math.min(1, tilt * (0.25 + Math.random() * 0.75));
+          }
+        }
+        return targets;
+      }
+      // generic_levels() from the app: a slow wave, used when nothing is playing
+      var s = t / 1000;
+      for (var j = 0; j < NUM_BARS; j++) {
+        targets[j] = 0.2 + 0.12 * Math.sin(s * 1.6 + j * 0.32) + 0.07 * Math.sin(s * 2.7 - j * 0.17);
+      }
+      return targets;
+    }
+
+    function drawFrame(t) {
+      var dt = lastFrame ? Math.min(0.1, (t - lastFrame) / 1000) : 1 / 60;
+      lastFrame = t;
+      var playing = !!track && track.status === 'playing';
+      var target = nextTargets(t, playing);
+      // fast attack, slower release, frame-rate independent (Spectrum.smooth)
+      var attack = 1 - Math.exp(-dt * 35), release = 1 - Math.exp(-dt * 9);
+      for (var i = 0; i < NUM_BARS; i++) {
+        levels[i] += (target[i] - levels[i]) * (target[i] > levels[i] ? attack : release);
+        peaks[i] = Math.max(levels[i], peaks[i] - dt * 0.6);
+      }
+
+      var w = canvas.width, h = canvas.height, gap = 2;
+      var bw = (w - gap * (NUM_BARS - 1)) / NUM_BARS, area = h - 8;
+      ctx.clearRect(0, 0, w, h);
+      for (var k = 0; k < NUM_BARS; k++) {
+        var x = Math.round(k * (bw + gap)), bwi = Math.round(bw);
+        var bh = Math.max(3, Math.round(levels[k] * area));
+        ctx.fillStyle = accent;
+        ctx.fillRect(x, h - bh, bwi, bh);
+        ctx.fillStyle = accentDim;
+        ctx.fillRect(x, h - Math.max(3, Math.round(peaks[k] * area)) - 4, bwi, 2);
+      }
+      updateProgress();
+    }
+
+    function loop(t) {
+      if (!running) return;
+      drawFrame(t);
+      requestAnimationFrame(loop);
     }
 
     toggle.addEventListener('click', function () {
       running = !running;
       toggle.setAttribute('aria-pressed', String(running));
       toggle.innerHTML = running ? '&#10073;&#10073; Pause visualizer' : '&#9654; Play visualizer';
-      if (running) {
-        if (!audioCtx) initAudio();
-        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-        draw();
-      }
+      if (running) { lastFrame = 0; requestAnimationFrame(loop); }
     });
 
-    if (running) { draw(); }
-    else { toggle.innerHTML = '&#9654; Play visualizer'; toggle.setAttribute('aria-pressed', 'false'); }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && NOW_PLAYING_URL) poll();
+    });
+
+    var savedLimit = NOW_PLAYING_URL && limitedToday();
+    if (savedLimit) {
+      limited = true;
+      if (savedLimit.track) { track = savedLimit.track; receivedAt = performance.now(); render(); }
+    } else if (NOW_PLAYING_URL) poll();
+    if (running) { requestAnimationFrame(loop); }
+    else {
+      toggle.innerHTML = '&#9654; Play visualizer';
+      toggle.setAttribute('aria-pressed', 'false');
+      levels.set(nextTargets(0, false)); peaks.set(levels);
+      drawFrame(0); // one still frame so the canvas isn't empty
+    }
+    // keep the progress bar ticking even with the visualizer paused
+    setInterval(function () { if (!running) updateProgress(); }, 1000);
   })();
 
   /* ============================================================

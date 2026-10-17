@@ -1,0 +1,19 @@
+name = "spotify-now-playing"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Sites allowed to call the worker. Add more (comma separated) if you test elsewhere.
+ALLOWED_ORIGINS = "https://bentaylor34.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+# Secrets (set with `npx wrangler secret put <NAME>`, never commit them):
+#   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN
+
+# Daily request cap (see DAILY_LIMIT in worker.js)
+[[durable_objects.bindings]]
+name = "QUOTA"
+class_name = "Quota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Quota"]
