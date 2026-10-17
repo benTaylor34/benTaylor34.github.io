@@ -384,6 +384,25 @@
   }
   .dl-cv:hover { text-decoration: none; color: var(--papaya); transform: translate(2px,2px); box-shadow: 3px 3px 0 var(--charcoal); }
 
+  /* "Are you sure?" popup before the CV downloads */
+  .cv-confirm {
+    background: var(--papaya); color: var(--charcoal);
+    border: var(--border-w) solid var(--charcoal); box-shadow: 8px 8px 0 var(--charcoal);
+    padding: 1.25rem 1.5rem; text-align: center; max-width: calc(100vw - 32px);
+  }
+  .cv-confirm::backdrop { background: rgba(42, 61, 69, 0.6); }
+  .cv-confirm p { font-family: 'Press Start 2P', monospace; font-size: 0.8rem; color: var(--rust); margin: 0 0 1rem; }
+  .cv-confirm img { display: block; margin: 0 auto; width: 150px; height: 150px; border: 3px solid var(--charcoal); }
+  .cv-confirm-actions { display: flex; gap: 0.75rem; justify-content: center; margin-top: 1.1rem; }
+  .cv-confirm-actions button, .cv-confirm-actions a {
+    font-family: 'Press Start 2P', monospace; font-size: 0.65rem; line-height: 1;
+    padding: 0.7rem 0.9rem; border: 3px solid var(--charcoal); cursor: pointer;
+    box-shadow: 3px 3px 0 var(--charcoal);
+  }
+  .cv-confirm-actions button { background: var(--papaya-deep); color: var(--charcoal); }
+  .cv-confirm-actions a { background: var(--rust); color: var(--papaya); text-decoration: none; }
+  .cv-confirm-actions button:hover, .cv-confirm-actions a:hover { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--charcoal); }
+
   /* ============================================================
      MINI GAMES
      ============================================================ */
@@ -775,7 +794,20 @@
         <p style="font-size:1.1rem;margin:0.25rem 0;"><strong>[Masters of Science]</strong><br/>[Lancaster], [2025]</p>
         <p style="font-size:1.1rem;margin:0.25rem 0;"><strong>[Bachelors of Science]</strong><br/>[Lougborough], [2024]</p>
 
-        <a class="dl-cv" href="assets/Ben Taylor - CV.pdf" download="Ben-Taylor-CV.pdf" onclick="return confirm('Are you sure?');">&#8680; Download CV</a>
+        <a class="dl-cv" id="cvDownload" href="assets/Ben Taylor - CV.pdf" download="Ben-Taylor-CV.pdf">&#8680; Download CV</a>
+
+        <!-- "Are you sure?" popup shown before the CV downloads -->
+        <dialog class="cv-confirm" id="cvConfirm" aria-labelledby="cvConfirmText">
+          <p id="cvConfirmText">Are you sure about that?</p>
+          <picture>
+            <source type="image/webp" srcset="assets/dwayne.webp" />
+            <img src="assets/dwayne.png" alt="Dwayne Johnson raising an eyebrow" width="150" height="150" />
+          </picture>
+          <div class="cv-confirm-actions">
+            <button type="button" id="cvCancel">Cancel</button>
+            <a id="cvYes" href="assets/Ben Taylor - CV.pdf" download="Ben-Taylor-CV.pdf">Yes</a>
+          </div>
+        </dialog>
       </div>
     </div>
   </section>
@@ -909,6 +941,25 @@
       })();
     });
   }
+
+  /* ---------- Download CV: "Are you sure?" popup ---------- */
+  (function () {
+    var link = document.getElementById('cvDownload');
+    var dialog = document.getElementById('cvConfirm');
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (dialog.showModal) dialog.showModal();
+      else if (confirm('Are you sure?')) location.href = link.href; // very old browsers
+    });
+    document.getElementById('cvCancel').addEventListener('click', function () { dialog.close(); });
+    // "Yes" is a real download link, so the browser downloads it; just close the popup too
+    document.getElementById('cvYes').addEventListener('click', function () { dialog.close(); });
+    // clicking the dimmed area outside the popup cancels
+    dialog.addEventListener('click', function (e) {
+      var r = dialog.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close();
+    });
+  })();
 
   /* ---------- Now Playing: live Spotify panel ----------
      Web port of the desktop Spotify Visualiser (github.com/benTaylor34/Spotify-Visualiser).
